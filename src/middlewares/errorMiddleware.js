@@ -1,13 +1,10 @@
 const { NODE_ENV } = require('../config/env');
+const ApiResponse = require('../utils/ApiResponse');
 
 module.exports = (err, req, res, _next) => {
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
+  const details = NODE_ENV === 'development' ? { stack: err.stack } : null;
 
-  res.status(statusCode).json({
-    status: 'error',
-    statusCode,
-    message,
-    ...(NODE_ENV === 'development' && { stack: err.stack }),
-  });
+  res.status(statusCode).json(ApiResponse.error(message, statusCode, details));
 };
