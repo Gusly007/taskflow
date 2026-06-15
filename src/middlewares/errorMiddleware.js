@@ -1,5 +1,5 @@
 const { NODE_ENV } = require('../config/env');
-const ApiResponse = require('../utils/ApiResponse');
+const ApiResponse = require('../utils/apiResponse');
 
 module.exports = (err, req, res, _next) => {
   const statusCode = err.statusCode || 500;

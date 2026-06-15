@@ -1,5 +1,5 @@
 const collaboratorService = require('../services/collaboratorService');
-const ApiResponse = require('../utils/ApiResponse');
+const ApiResponse = require('../utils/apiResponse');
 
 exports.add = async (req, res, next) => {
   try {
