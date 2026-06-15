@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "jest --forceExit --detectOpenHandles --verbose"
+    "test": "jest --forceExit --detectOpenHandles --verbose",
+    "test:coverage": "jest --forceExit --detectOpenHandles --coverage"
   },
   "repository": {
     "type": "git",
@@ -16,6 +17,10 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "jest": {
+    "testEnvironment": "node",
+    "setupFiles": ["./tests/setup.js"]
+  },
   "bugs": {
     "url": "https://github.com/Gusly007/task-manager-api/issues"
   },

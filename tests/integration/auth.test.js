@@ -1,7 +1,7 @@
 const request = require('supertest');
-const app = require('../src/app');
-const { sequelize } = require('./setup');
-const { User } = require('../src/models');
+const app = require('../../src/app');
+const { sequelize } = require('../../src/config/db');
+const { User } = require('../../src/models');
 
 beforeAll(async () => {
   await sequelize.sync({ force: true });
@@ -25,10 +25,8 @@ describe('Auth API', () => {
   // ==================== REGISTER ====================
 
   describe('POST /api/auth/register', () => {
-    it('should register a new user successfully', async () => {
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send(validUser);
+    it('registers a new user and returns token + user (without password)', async () => {
+      const res = await request(app).post('/api/auth/register').send(validUser);
 
       expect(res.status).toBe(201);
       expect(res.body).toHaveProperty('token');
@@ -38,18 +36,15 @@ describe('Auth API', () => {
       expect(res.body.user).not.toHaveProperty('password');
     });
 
-    it('should fail if email is already in use', async () => {
+    it('returns 409 if email is already in use', async () => {
       await request(app).post('/api/auth/register').send(validUser);
-
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send(validUser);
+      const res = await request(app).post('/api/auth/register').send(validUser);
 
       expect(res.status).toBe(409);
       expect(res.body.message).toBe('Email already in use');
     });
 
-    it('should fail with missing name', async () => {
+    it('returns 400 if name is missing', async () => {
       const res = await request(app)
         .post('/api/auth/register')
         .send({ email: 'test@test.com', password: 'password123' });
@@ -57,7 +52,7 @@ describe('Auth API', () => {
       expect(res.status).toBe(400);
     });
 
-    it('should fail with invalid email', async () => {
+    it('returns 400 if email is invalid', async () => {
       const res = await request(app)
         .post('/api/auth/register')
         .send({ name: 'Test', email: 'not-an-email', password: 'password123' });
@@ -65,7 +60,7 @@ describe('Auth API', () => {
       expect(res.status).toBe(400);
     });
 
-    it('should fail with short password', async () => {
+    it('returns 400 if password is too short', async () => {
       const res = await request(app)
         .post('/api/auth/register')
         .send({ name: 'Test', email: 'test@test.com', password: '123' });
@@ -81,7 +76,7 @@ describe('Auth API', () => {
       await request(app).post('/api/auth/register').send(validUser);
     });
 
-    it('should login with valid credentials', async () => {
+    it('logs in with valid credentials and returns token', async () => {
       const res = await request(app)
         .post('/api/auth/login')
         .send({ email: validUser.email, password: validUser.password });
@@ -91,7 +86,7 @@ describe('Auth API', () => {
       expect(res.body.user.email).toBe(validUser.email);
     });
 
-    it('should fail with wrong password', async () => {
+    it('returns 401 with wrong password', async () => {
       const res = await request(app)
         .post('/api/auth/login')
         .send({ email: validUser.email, password: 'wrongpassword' });
@@ -100,7 +95,7 @@ describe('Auth API', () => {
       expect(res.body.message).toBe('Invalid credentials');
     });
 
-    it('should fail with non-existent email', async () => {
+    it('returns 401 with non-existent email', async () => {
       const res = await request(app)
         .post('/api/auth/login')
         .send({ email: 'nobody@test.com', password: 'password123' });
@@ -109,10 +104,8 @@ describe('Auth API', () => {
       expect(res.body.message).toBe('Invalid credentials');
     });
 
-    it('should fail with missing fields', async () => {
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({});
+    it('returns 400 if fields are missing', async () => {
+      const res = await request(app).post('/api/auth/login').send({});
 
       expect(res.status).toBe(400);
     });

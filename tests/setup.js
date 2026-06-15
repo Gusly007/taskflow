@@ -1,5 +1,3 @@
 process.env.NODE_ENV = 'test';
-
-const { sequelize } = require('../src/config/db');
-
-module.exports = { sequelize };
+process.env.DB_PASSWORD = 'test-password-not-used-in-sqlite';
+process.env.JWT_SECRET = 'test-jwt-secret-for-testing-only';
