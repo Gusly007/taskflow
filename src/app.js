@@ -14,6 +14,8 @@ app.use(express.json());
 
 setupSwagger(app);
 
+app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 
