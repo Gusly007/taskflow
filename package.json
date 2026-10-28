@@ -19,7 +19,9 @@
   "type": "commonjs",
   "jest": {
     "testEnvironment": "node",
-    "setupFiles": ["./tests/setup.js"]
+    "setupFiles": [
+      "./tests/setup.js"
+    ]
   },
   "bugs": {
     "url": "https://github.com/Gusly007/task-manager-api/issues"
@@ -40,7 +42,7 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
-    "jest": "^30.3.0",
+    "jest": "^30.4.2",
     "sqlite3": "^6.0.1",
     "supertest": "^7.2.2"
   }
