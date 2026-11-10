@@ -29,11 +29,13 @@ describe('Auth API', () => {
       const res = await request(app).post('/api/auth/register').send(validUser);
 
       expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty('token');
-      expect(res.body.user).toHaveProperty('id');
-      expect(res.body.user.name).toBe(validUser.name);
-      expect(res.body.user.email).toBe(validUser.email);
-      expect(res.body.user).not.toHaveProperty('password');
+      expect(res.body.status).toBe('success');
+      expect(res.body.statusCode).toBe(201);
+      expect(res.body.data).toHaveProperty('token');
+      expect(res.body.data.user).toHaveProperty('id');
+      expect(res.body.data.user.name).toBe(validUser.name);
+      expect(res.body.data.user.email).toBe(validUser.email);
+      expect(res.body.data.user).not.toHaveProperty('password');
     });
 
     it('returns 409 if email is already in use', async () => {
@@ -41,6 +43,7 @@ describe('Auth API', () => {
       const res = await request(app).post('/api/auth/register').send(validUser);
 
       expect(res.status).toBe(409);
+      expect(res.body.status).toBe('error');
       expect(res.body.message).toBe('Email already in use');
     });
 
@@ -82,8 +85,10 @@ describe('Auth API', () => {
         .send({ email: validUser.email, password: validUser.password });
 
       expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('token');
-      expect(res.body.user.email).toBe(validUser.email);
+      expect(res.body.status).toBe('success');
+      expect(res.body.data).toHaveProperty('token');
+      expect(res.body.data.user.email).toBe(validUser.email);
+      expect(res.body.data.user).not.toHaveProperty('password');
     });
 
     it('returns 401 with wrong password', async () => {

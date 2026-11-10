@@ -3,7 +3,7 @@ const ApiResponse = require('../utils/apiResponse');
 exports.create = async (req, res, next) => {
   try {
     const task = await taskService.create(req.user.id, req.body);
-    res.status(201).json(ApiResponse.success('Task created successfully', task));
+    res.status(201).json(ApiResponse.success('Task created successfully', task, 201));
   } catch (error) {
     next(error);
   }
@@ -39,7 +39,8 @@ exports.update = async (req, res, next) => {
 exports.remove = async (req, res, next) => {
   try {
     await taskService.remove(req.params.id, req.user.id);
-    res.status(204).json(ApiResponse.success('Task deleted successfully'));
+    // 204 No Content: HTTP forbids a body, so we send none.
+    res.status(204).end();
   } catch (error) {
     next(error);
   }

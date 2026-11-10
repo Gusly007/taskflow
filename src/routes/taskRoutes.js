@@ -6,6 +6,7 @@ const auth = require('../middlewares/authMiddleware');
 const { validateCreateTask, validateUpdateTask } = require('../validators/taskValidator');
 const { validateAddCollaborator, validateUpdateRole } = require('../validators/collaboratorValidator');
 const validate = require('../middlewares/validateMiddleware');
+const { validateTaskId, validateCollaboratorParams } = require('../validators/paramValidator');
 
 /**
  * @swagger
@@ -106,11 +107,11 @@ router.get('/mine', taskController.getMine);
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Access denied
+ *         description: Access denied (user can see the task but lacks the required role)
  *       404:
- *         description: Task not found
+ *         description: Task not found, or the user has no access to it
  */
-router.get('/:id', taskController.getById);
+router.get('/:id', validateTaskId, validate, taskController.getById);
 
 /**
  * @swagger
@@ -151,11 +152,11 @@ router.get('/:id', taskController.getById);
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Access denied
+ *         description: Access denied (user can see the task but lacks the required role)
  *       404:
- *         description: Task not found
+ *         description: Task not found, or the user has no access to it
  */
-router.put('/:id', validateUpdateTask, validate, taskController.update);
+router.put('/:id', validateTaskId, validateUpdateTask, validate, taskController.update);
 
 /**
  * @swagger
@@ -178,17 +179,17 @@ router.put('/:id', validateUpdateTask, validate, taskController.update);
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Access denied
+ *         description: Access denied (user can see the task but lacks the required role)
  *       404:
- *         description: Task not found
+ *         description: Task not found, or the user has no access to it
  */
-router.delete('/:id', taskController.remove);
+router.delete('/:id', validateTaskId, validate, taskController.remove);
 
 /**
  * @swagger
  * /tasks/{id}/collaborators:
  *   get:
- *     summary: List collaborators of a task
+ *     summary: List collaborators of a task (owner or collaborator only)
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
@@ -203,8 +204,10 @@ router.delete('/:id', taskController.remove);
  *         description: List of collaborators
  *       401:
  *         description: Unauthorized
+ *       404:
+ *         description: Task not found, or the user has no access to it
  */
-router.get('/:id/collaborators', collaboratorController.list);
+router.get('/:id/collaborators', validateTaskId, validate, collaboratorController.list);
 
 /**
  * @swagger
@@ -242,11 +245,13 @@ router.get('/:id/collaborators', collaboratorController.list);
  *       400:
  *         description: Validation error
  *       403:
- *         description: Access denied
+ *         description: Access denied (collaborators cannot add collaborators)
+ *       404:
+ *         description: Task or user not found, or the requester has no access to the task
  *       409:
  *         description: User is already a collaborator
  */
-router.post('/:id/collaborators', validateAddCollaborator, validate, collaboratorController.add);
+router.post('/:id/collaborators', validateTaskId, validateAddCollaborator, validate, collaboratorController.add);
 
 /**
  * @swagger
@@ -287,7 +292,7 @@ router.post('/:id/collaborators', validateAddCollaborator, validate, collaborato
  *       404:
  *         description: Collaborator not found
  */
-router.patch('/:id/collaborators/:userId', validateUpdateRole, validate, collaboratorController.updateRole);
+router.patch('/:id/collaborators/:userId', validateCollaboratorParams, validateUpdateRole, validate, collaboratorController.updateRole);
 
 /**
  * @swagger
@@ -316,6 +321,6 @@ router.patch('/:id/collaborators/:userId', validateUpdateRole, validate, collabo
  *       404:
  *         description: Collaborator not found
  */
-router.delete('/:id/collaborators/:userId', collaboratorController.remove);
+router.delete('/:id/collaborators/:userId', validateCollaboratorParams, validate, collaboratorController.remove);
 
 module.exports = router;

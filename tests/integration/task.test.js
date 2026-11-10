@@ -33,6 +33,7 @@ describe('Task API', () => {
       const res = await request(app).post('/api/tasks').set(auth()).send(validTask);
 
       expect(res.status).toBe(201);
+      expect(res.body.statusCode).toBe(201);
       expect(res.body.data.title).toBe(validTask.title);
       expect(res.body.data.description).toBe(validTask.description);
       expect(res.body.data.status).toBe('todo');
@@ -160,13 +161,19 @@ describe('Task API', () => {
       expect(res.status).toBe(404);
     });
 
-    it('returns 403 if user has no access', async () => {
+    it('returns 404 if user has no access (does not reveal that the task exists)', async () => {
       const user2 = await createUser({ email: 'user2@test.com' });
       const task = await createTask(user2.token);
 
       const res = await request(app).get(`/api/tasks/${task.id}`).set(auth());
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 400 if id is not a number', async () => {
+      const res = await request(app).get('/api/tasks/abc').set(auth());
+
+      expect(res.status).toBe(400);
     });
 
     it('returns 401 without token', async () => {
@@ -228,13 +235,13 @@ describe('Task API', () => {
       expect(res.status).toBe(403);
     });
 
-    it('returns 403 if user has no access', async () => {
+    it('returns 404 if user has no access (does not reveal that the task exists)', async () => {
       const user2 = await createUser({ email: 'user2@test.com' });
       const task = await createTask(user2.token);
 
       const res = await request(app).put(`/api/tasks/${task.id}`).set(auth()).send({ title: 'Hacked' });
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
 
     it('returns 404 if task does not exist', async () => {
@@ -260,6 +267,7 @@ describe('Task API', () => {
 
       const res = await request(app).delete(`/api/tasks/${task.id}`).set(auth());
       expect(res.status).toBe(204);
+      expect(res.text).toBe('');
 
       const check = await request(app).get(`/api/tasks/${task.id}`).set(auth());
       expect(check.status).toBe(404);
@@ -279,13 +287,13 @@ describe('Task API', () => {
       expect(res.status).toBe(403);
     });
 
-    it('returns 403 if user has no access', async () => {
+    it('returns 404 if user has no access (does not reveal that the task exists)', async () => {
       const user2 = await createUser({ email: 'user2@test.com' });
       const task = await createTask(user2.token);
 
       const res = await request(app).delete(`/api/tasks/${task.id}`).set(auth());
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
 
     it('returns 404 if task does not exist', async () => {

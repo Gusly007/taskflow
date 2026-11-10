@@ -41,7 +41,7 @@ const validate = require('../middlewares/validateMiddleware');
  *                 example: password123
  *     responses:
  *       201:
- *         description: User registered successfully
+ *         description: User registered successfully. Standard ApiResponse with data = { user, token }
  *       400:
  *         description: Validation error
  *       409:
@@ -74,7 +74,7 @@ router.post('/register', validateRegister, validate, authController.register);
  *                 example: password123
  *     responses:
  *       200:
- *         description: Login successful, returns JWT token
+ *         description: Login successful. Standard ApiResponse with data = { user, token }
  *       401:
  *         description: Invalid credentials
  */

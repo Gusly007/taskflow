@@ -9,7 +9,7 @@ const createUser = async (overrides = {}) => {
     ...overrides,
   };
   const res = await request(app).post('/api/auth/register').send(data);
-  return { token: res.body.token, userId: res.body.user.id };
+  return { token: res.body.data.token, userId: res.body.data.user.id };
 };
 
 const createTask = async (token, overrides = {}) => {

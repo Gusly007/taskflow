@@ -7,7 +7,7 @@ exports.add = async (req, res, next) => {
     const targetUserId = parseInt(req.body.userId);
     const { role } = req.body;
     const collaborator = await collaboratorService.addCollaborator(taskId, req.user.id, targetUserId, role);
-    res.status(201).json(ApiResponse.success('Collaborator added successfully', collaborator));
+    res.status(201).json(ApiResponse.success('Collaborator added successfully', collaborator, 201));
   } catch (error) {
     next(error);
   }
@@ -39,7 +39,7 @@ exports.updateRole = async (req, res, next) => {
 exports.list = async (req, res, next) => {
   try {
     const taskId = parseInt(req.params.id);
-    const collaborators = await collaboratorService.getCollaborators(taskId);
+    const collaborators = await collaboratorService.getCollaborators(taskId, req.user.id);
     res.status(200).json(ApiResponse.success('Collaborators retrieved successfully', collaborators));
   } catch (error) {
     next(error);

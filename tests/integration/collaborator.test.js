@@ -28,6 +28,12 @@ beforeEach(async () => {
 const ownerAuth = () => ({ Authorization: `Bearer ${ownerToken}` });
 const collabAuth = () => ({ Authorization: `Bearer ${collaboratorToken}` });
 
+const addCollaborator = (userId, role = 'viewer') =>
+  request(app)
+    .post(`/api/tasks/${task.id}/collaborators`)
+    .set(ownerAuth())
+    .send({ userId, role });
+
 describe('Collaborator API', () => {
 
   // ==================== ADD ====================
@@ -40,6 +46,7 @@ describe('Collaborator API', () => {
         .send({ userId: collaboratorUser.userId, role: 'viewer' });
 
       expect(res.status).toBe(201);
+      expect(res.body.statusCode).toBe(201);
       expect(res.body.data.role).toBe('viewer');
       expect(res.body.data.userId).toBe(collaboratorUser.userId);
     });
@@ -64,13 +71,40 @@ describe('Collaborator API', () => {
       expect(res.body.data.role).toBe('viewer');
     });
 
-    it('returns 403 if non-owner tries to add collaborator', async () => {
+    it('returns 404 if a user with no access tries to add a collaborator', async () => {
       const res = await request(app)
         .post(`/api/tasks/${task.id}/collaborators`)
         .set(collabAuth())
         .send({ userId: collaboratorUser.userId, role: 'viewer' });
 
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 403 if an editor collaborator tries to add a collaborator', async () => {
+      await addCollaborator(collaboratorUser.userId, 'editor');
+      const stranger = await createUser({ email: 'stranger@test.com' });
+
+      const res = await request(app)
+        .post(`/api/tasks/${task.id}/collaborators`)
+        .set(collabAuth())
+        .send({ userId: stranger.userId, role: 'viewer' });
+
       expect(res.status).toBe(403);
+    });
+
+    it('returns 404 if the user to add does not exist', async () => {
+      const res = await addCollaborator(99999);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 404 if the task does not exist', async () => {
+      const res = await request(app)
+        .post('/api/tasks/99999/collaborators')
+        .set(ownerAuth())
+        .send({ userId: collaboratorUser.userId });
+
+      expect(res.status).toBe(404);
     });
 
     it('returns 400 if owner tries to add themselves', async () => {
@@ -146,6 +180,47 @@ describe('Collaborator API', () => {
       expect(res.body.data).toHaveLength(0);
     });
 
+    it('a viewer collaborator can list collaborators', async () => {
+      await addCollaborator(collaboratorUser.userId, 'viewer');
+
+      const res = await request(app).get(`/api/tasks/${task.id}/collaborators`).set(collabAuth());
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+    });
+
+    it('an editor collaborator can list collaborators', async () => {
+      await addCollaborator(collaboratorUser.userId, 'editor');
+
+      const res = await request(app).get(`/api/tasks/${task.id}/collaborators`).set(collabAuth());
+
+      expect(res.status).toBe(200);
+    });
+
+    it('returns 404 for a user with no access to the task (no data leak)', async () => {
+      await addCollaborator(collaboratorUser.userId, 'viewer');
+      const stranger = await createUser({ email: 'stranger@test.com' });
+
+      const res = await request(app)
+        .get(`/api/tasks/${task.id}/collaborators`)
+        .set({ Authorization: `Bearer ${stranger.token}` });
+
+      expect(res.status).toBe(404);
+      expect(res.body.data).toBeUndefined();
+    });
+
+    it('returns 404 if the task does not exist', async () => {
+      const res = await request(app).get('/api/tasks/99999/collaborators').set(ownerAuth());
+
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 400 if task id is not a number', async () => {
+      const res = await request(app).get('/api/tasks/abc/collaborators').set(ownerAuth());
+
+      expect(res.status).toBe(400);
+    });
+
     it('returns 401 without token', async () => {
       const res = await request(app).get(`/api/tasks/${task.id}/collaborators`);
 
@@ -180,6 +255,17 @@ describe('Collaborator API', () => {
         .send({ role: 'editor' });
 
       expect(res.status).toBe(403);
+    });
+
+    it('returns 404 if a user with no access tries to update a role', async () => {
+      const stranger = await createUser({ email: 'stranger@test.com' });
+
+      const res = await request(app)
+        .patch(`/api/tasks/${task.id}/collaborators/${collaboratorUser.userId}`)
+        .set({ Authorization: `Bearer ${stranger.token}` })
+        .send({ role: 'editor' });
+
+      expect(res.status).toBe(404);
     });
 
     it('returns 404 if collaborator does not exist', async () => {
@@ -230,6 +316,16 @@ describe('Collaborator API', () => {
         .set(collabAuth());
 
       expect(res.status).toBe(403);
+    });
+
+    it('returns 404 if a user with no access tries to remove a collaborator', async () => {
+      const stranger = await createUser({ email: 'stranger@test.com' });
+
+      const res = await request(app)
+        .delete(`/api/tasks/${task.id}/collaborators/${collaboratorUser.userId}`)
+        .set({ Authorization: `Bearer ${stranger.token}` });
+
+      expect(res.status).toBe(404);
     });
 
     it('returns 404 if collaborator does not exist', async () => {

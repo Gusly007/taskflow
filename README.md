@@ -20,6 +20,8 @@ Built as the backend foundation for a future multi-tenant SaaS platform where or
 | Security headers | Helmet |
 | API docs | Swagger UI (`/api-docs`) |
 | Tests | Jest + Supertest |
+| Containers | Docker + Docker Compose (PostgreSQL 16) |
+| CI | GitHub Actions |
 
 ---
 
@@ -40,6 +42,10 @@ src/
 ```
 
 Pattern: **Controller → Service → Repository**. Services can call multiple repositories; services never call other services.
+
+A Next.js frontend lives in `frontend/taskflowfront/` (scaffold, work in progress).
+
+Detailed living backend notes (French): [docs/BACKEND.md](docs/BACKEND.md).
 
 ---
 
@@ -90,9 +96,26 @@ npm start
 
 Swagger UI available at `http://localhost:3000/api-docs`
 
+### Run with Docker
+
+Starts the API and a PostgreSQL 16 database. `DB_PASSWORD` and `JWT_SECRET` are read from `.env`.
+
+```bash
+docker compose up -d --build
+```
+
+Health check: `http://localhost:3000/health`
+
 ---
 
 ## API Reference
+
+### System
+
+| Method | Route | Description |
+|---|---|---|
+| GET | `/health` | Health check — returns `{ "status": "ok" }` |
+| GET | `/api-docs` | Swagger UI |
 
 ### Authentication — `/api/auth`
 
@@ -153,7 +176,7 @@ task_collaborators
 - Bcrypt password hashing
 - Helmet — 15 security headers (removes `X-Powered-By`, adds CSP, HSTS, etc.)
 - Input validation on all write endpoints via express-validator
-- Centralized error handling — stack traces only exposed in `development`
+- Centralized error handling — consistent error format; stack traces only in development, generic message for 500 errors in production
 - Environment secrets required at startup — no hardcoded fallbacks for sensitive values
 
 ---
@@ -161,10 +184,19 @@ task_collaborators
 ## Tests
 
 ```bash
-npm test
+npm test               # run all tests
+npm run test:coverage  # with coverage report
 ```
 
-Tests run against an in-memory SQLite database (isolated from production). Covers auth endpoints and task CRUD via HTTP (Jest + Supertest).
+Tests run against an in-memory SQLite database (isolated from production).
+
+```
+tests/
+├── unit/           # services in isolation (taskService, collaboratorService)
+└── integration/    # HTTP endpoints via Supertest (auth, tasks, collaborators)
+```
+
+80 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
 
 ---
 

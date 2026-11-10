@@ -59,12 +59,12 @@ describe('taskService', () => {
       const task = await taskService.getById(1, 5);
 
       expect(task.id).toBe(1);
-      expect(collaboratorRepository.isCollaborator).not.toHaveBeenCalled();
+      expect(collaboratorRepository.getCollaboratorRole).not.toHaveBeenCalled();
     });
 
     it('returns task if user is collaborator', async () => {
       taskRepository.findById.mockResolvedValue({ id: 1, userId: 999 });
-      collaboratorRepository.isCollaborator.mockResolvedValue(true);
+      collaboratorRepository.getCollaboratorRole.mockResolvedValue('viewer');
 
       const task = await taskService.getById(1, 5);
 
@@ -77,11 +77,11 @@ describe('taskService', () => {
       await expect(taskService.getById(1, 5)).rejects.toMatchObject({ statusCode: 404 });
     });
 
-    it('throws 403 if user is neither owner nor collaborator', async () => {
+    it('throws 404 if user is neither owner nor collaborator', async () => {
       taskRepository.findById.mockResolvedValue({ id: 1, userId: 999 });
-      collaboratorRepository.isCollaborator.mockResolvedValue(false);
+      collaboratorRepository.getCollaboratorRole.mockResolvedValue(null);
 
-      await expect(taskService.getById(1, 5)).rejects.toMatchObject({ statusCode: 403 });
+      await expect(taskService.getById(1, 5)).rejects.toMatchObject({ statusCode: 404 });
     });
   });
 
@@ -113,11 +113,11 @@ describe('taskService', () => {
       await expect(taskService.update(1, 5, {})).rejects.toMatchObject({ statusCode: 403 });
     });
 
-    it('throws 403 if user has no access', async () => {
+    it('throws 404 if user has no access', async () => {
       taskRepository.findById.mockResolvedValue({ id: 1, userId: 999 });
       collaboratorRepository.getCollaboratorRole.mockResolvedValue(null);
 
-      await expect(taskService.update(1, 5, {})).rejects.toMatchObject({ statusCode: 403 });
+      await expect(taskService.update(1, 5, {})).rejects.toMatchObject({ statusCode: 404 });
     });
 
     it('throws 404 if task does not exist', async () => {
@@ -138,10 +138,19 @@ describe('taskService', () => {
       expect(taskRepository.remove).toHaveBeenCalledWith(1);
     });
 
-    it('throws 403 for non-owner (collaborator cannot delete)', async () => {
+    it('throws 403 for an editor collaborator (only owner can delete)', async () => {
       taskRepository.findById.mockResolvedValue({ id: 1, userId: 999 });
+      collaboratorRepository.getCollaboratorRole.mockResolvedValue('editor');
 
       await expect(taskService.remove(1, 5)).rejects.toMatchObject({ statusCode: 403 });
+      expect(taskRepository.remove).not.toHaveBeenCalled();
+    });
+
+    it('throws 404 if user has no access', async () => {
+      taskRepository.findById.mockResolvedValue({ id: 1, userId: 999 });
+      collaboratorRepository.getCollaboratorRole.mockResolvedValue(null);
+
+      await expect(taskService.remove(1, 5)).rejects.toMatchObject({ statusCode: 404 });
     });
 
     it('throws 404 if task does not exist', async () => {
