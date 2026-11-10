@@ -30,3 +30,70 @@ jobs:
           NODE_ENV: test
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           DB_PASSWORD: dummy
+
+  # Runs the real migrations against PostgreSQL (the production database),
+  # up, fully down, then up again, so a broken migration never reaches main.
+  migrations:
+    name: Migrations on PostgreSQL
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: task_manager
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: production
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: task_manager
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: ci-only-not-a-real-secret
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply all migrations
+        run: npm run migrate
+
+      - name: Roll back all migrations
+        run: npm run migrate:undo:all
+
+      - name: Re-apply all migrations
+        run: npm run migrate
+
+      - name: Show migration status
+        run: npm run migrate:status
+
+  # Makes sure the production image still builds (a broken lock file or Dockerfile fails here).
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t taskflow-api:ci .
