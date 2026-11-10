@@ -97,8 +97,8 @@ task_collaborators  id, taskId → tasks, userId → users, role (viewer | edito
 | Méthode | Route | Ce qu'elle fait | Accès |
 |---|---|---|---|
 | POST | `/api/tasks` | Créer une tâche (`title` requis, `description`, `status`, `priority`, `dueDate` optionnels) | Connecté |
-| GET | `/api/tasks` | Mes tâches + celles où je collabore | Connecté |
-| GET | `/api/tasks/mine` | Seulement mes tâches | Connecté |
+| GET | `/api/tasks` | Mes tâches + celles où je collabore (filtres, tri, pagination : voir ci-dessous) | Connecté |
+| GET | `/api/tasks/mine` | Seulement mes tâches (mêmes paramètres) | Connecté |
 | GET | `/api/tasks/:id` | Détail d'une tâche | Propriétaire ou collaborateur |
 | PUT | `/api/tasks/:id` | Modifier une tâche (`dueDate: null` retire l'échéance) | Propriétaire ou `editor` |
 | DELETE | `/api/tasks/:id` | Supprimer une tâche → 204 sans corps | Propriétaire |
@@ -121,6 +121,32 @@ task_collaborators  id, taskId → tasks, userId → users, role (viewer | edito
 
 ---
 
+### Lister les tâches : `GET /api/tasks` et `/api/tasks/mine`
+
+| Paramètre | Exemple | Effet |
+|---|---|---|
+| `status` | `todo,in-progress` | Un ou plusieurs statuts (séparés par des virgules) |
+| `priority` | `high` | Une ou plusieurs priorités |
+| `overdue` | `true` | `true` = échéance passée et pas `done` · `false` = tout le reste |
+| `dueAfter` / `dueBefore` | `2026-11-01` | Échéance comprise entre ces jours (inclus) |
+| `sort` | `dueDate`, `-priority` | `createdAt`, `updatedAt`, `dueDate`, `priority`, `title`, `status` · `-` = décroissant · défaut `-createdAt` |
+| `page` / `limit` | `2` / `50` | Pagination · défaut page 1, 20 par page, max 100 |
+
+- Réponse : `data` = la page de tâches, `meta` = `{ page, limit, total, totalPages }`.
+- Tri `priority` par importance (low < medium < high), pas par ordre alphabétique. Les tâches sans échéance sont **toujours en dernier** en tri `dueDate`. Résultat identique sur SQLite et PostgreSQL (vérifié).
+- « En retard » est calculé avec la date du jour en **UTC**.
+- Paramètre invalide (statut inconnu, `limit=500`, date mal formée…) → 400.
+
+### Rate limiting (`src/middlewares/rateLimitMiddleware.js`)
+
+- `POST /api/auth/login` : **10 échecs** max par IP et par 15 min (les connexions réussies ne comptent pas), puis 429 pour toutes les tentatives de cette IP jusqu'à la fin de la fenêtre.
+- `POST /api/auth/register` : 10 inscriptions max par IP et par 15 min.
+- Réglable avec `AUTH_RATE_LIMIT_MAX` et `AUTH_RATE_LIMIT_WINDOW_MINUTES`. En-têtes `RateLimit` / `RateLimit-Policy` envoyés.
+- Derrière un proxy (Render, Fly, nginx…), mettre `TRUST_PROXY=1`, sinon tous les utilisateurs partagent l'IP du proxy et se bloquent mutuellement.
+- Compteurs en mémoire : suffisant pour une instance. Avec plusieurs instances, passer à un store Redis.
+
+---
+
 ## 6. Format des réponses
 
 Succès (`ApiResponse.success`) :
@@ -138,6 +164,8 @@ Erreur (`ApiResponse.error`, via `errorMiddleware`) :
 - `NODE_ENV=development` : le corps d'erreur contient aussi `details.stack`.
 - Hors développement, une erreur 500 renvoie toujours `Internal Server Error` (aucun message SQL ni chemin de fichier n'est exposé) et l'erreur est loguée côté serveur.
 
+Listes paginées : en plus, `"meta": { "page": 1, "limit": 20, "total": 45, "totalPages": 3 }`.
+
 Pour renvoyer une erreur depuis un service : `throw new ApiError(403, 'message')`.
 
 ---
@@ -147,11 +175,11 @@ Pour renvoyer une erreur depuis un service : `throw new ApiError(403, 'message')
 ```
 tests/
 ├── setup.js, helpers.js
-├── unit/          taskPolicy (18), taskService (18), collaboratorService (17), errorMiddleware (5)
-└── integration/   auth (9), task (37), collaborator (30), migrations (3)
+├── unit/          taskPolicy (18), taskService (22), collaboratorService (17), errorMiddleware (5)
+└── integration/   auth (9), task (37), taskList (22), collaborator (30), migrations (3), rateLimit (3)
 ```
 
-**137 tests.** Les tests construisent la base SQLite avec les **vraies migrations** (pas `sync`).
+**166 tests.** Les tests construisent la base SQLite avec les **vraies migrations** (pas `sync`).
 
 La CI (`.github/workflows/ci.yml`) tourne à chaque push et PR, avec 3 jobs :
 - **Run tests** : `npm ci` + `npm test`.
@@ -183,6 +211,7 @@ La CI (`.github/workflows/ci.yml`) tourne à chaque push et PR, avec 3 jobs :
 | 2026-11-10 | Contrôle d'accès centralisé (`src/policies/taskPolicy.js`) · faille `GET /:id/collaborators` corrigée · 404 au lieu de 403 sans aucun droit · validation des ids d'URL · 404 si on ajoute un utilisateur inexistant · 80 → 116 tests |
 | 2026-11-10 | `register` / `login` au format `ApiResponse` · `statusCode` du corps aligné sur le code HTTP (201) · stack en dev uniquement, 500 génériques hors dev · `DELETE` 204 sans corps · 116 → 121 tests |
 | 2026-11-10 | **Faille corrigée** : un `editor` pouvait devenir propriétaire via `PUT { userId }` (liste blanche des champs) · migrations Umzug à la place de `sync` · `priority` + `dueDate` sur les tâches · CI : migrations sur PostgreSQL + docker build · 121 → 137 tests |
+| 2026-11-10 | Filtres (`status`, `priority`, `overdue`, `dueAfter`/`dueBefore`), tri et pagination (`meta`) sur `GET /tasks` et `/tasks/mine` · rate limiting login/register (429) · `TRUST_PROXY` · 137 → 166 tests |
 
 ---
 

@@ -10,16 +10,52 @@ const pickWritable = (data = {}) =>
 
 exports.WRITABLE_FIELDS = WRITABLE_FIELDS;
 
+const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_SORT = '-createdAt';
+
+// Today's date as YYYY-MM-DD (UTC), used by the "overdue" filter.
+const todayUTC = () => new Date().toISOString().slice(0, 10);
+
+// Turns validated query params into repository options.
+const buildListOptions = (query = {}, today = todayUTC()) => {
+  const page = query.page || 1;
+  const limit = query.limit || DEFAULT_PAGE_SIZE;
+  const sort = query.sort || DEFAULT_SORT;
+  return {
+    filters: {
+      status: query.status,
+      priority: query.priority,
+      overdue: query.overdue,
+      dueAfter: query.dueAfter,
+      dueBefore: query.dueBefore,
+      today,
+    },
+    sort: { field: sort.replace(/^-/, ''), direction: sort.startsWith('-') ? 'DESC' : 'ASC' },
+    page,
+    limit,
+    offset: (page - 1) * limit,
+  };
+};
+
+const toPage = ({ rows, count }, { page, limit }) => ({
+  items: rows,
+  meta: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
+});
+
+exports.buildListOptions = buildListOptions;
+
 exports.create = async (userId, data) => {
   return taskRepository.create({ ...pickWritable(data), userId });
 };
 
-exports.getAllByUser = async (userId) => {
-  return taskRepository.findAllIncludingCollaborated(userId);
+exports.getAllByUser = async (userId, query) => {
+  const options = buildListOptions(query);
+  return toPage(await taskRepository.findAllIncludingCollaborated(userId, options), options);
 };
 
-exports.getMyTasks = async (userId) => {
-  return taskRepository.findAllByUser(userId);
+exports.getMyTasks = async (userId, query) => {
+  const options = buildListOptions(query);
+  return toPage(await taskRepository.findAllByUser(userId, options), options);
 };
 
 exports.getById = async (taskId, userId) => {

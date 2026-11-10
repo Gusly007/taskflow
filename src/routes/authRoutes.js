@@ -3,6 +3,7 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const { validateRegister, validateLogin } = require('../validators/authValidator');
 const validate = require('../middlewares/validateMiddleware');
+const { loginLimiter, registerLimiter } = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @swagger
@@ -46,8 +47,10 @@ const validate = require('../middlewares/validateMiddleware');
  *         description: Validation error
  *       409:
  *         description: Email already exists
+ *       429:
+ *         description: Too many attempts from this IP, try again later
  */
-router.post('/register', validateRegister, validate, authController.register);
+router.post('/register', registerLimiter, validateRegister, validate, authController.register);
 
 /**
  * @swagger
@@ -77,7 +80,9 @@ router.post('/register', validateRegister, validate, authController.register);
  *         description: Login successful. Standard ApiResponse with data = { user, token }
  *       401:
  *         description: Invalid credentials
+ *       429:
+ *         description: Too many failed login attempts from this IP, try again later
  */
-router.post('/login', validateLogin, validate, authController.login);
+router.post('/login', loginLimiter, validateLogin, validate, authController.login);
 
 module.exports = router;

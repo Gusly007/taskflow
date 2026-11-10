@@ -82,6 +82,11 @@ DB_USER=postgres
 DB_PASSWORD=           # required — app refuses to start without it
 JWT_SECRET=            # required — must be a long random string
 JWT_EXPIRES_IN=1d
+
+# Optional
+AUTH_RATE_LIMIT_MAX=10             # login: failed attempts per IP per window; register: attempts
+AUTH_RATE_LIMIT_WINDOW_MINUTES=15
+TRUST_PROXY=0                      # set to 1 behind a reverse proxy (Render, Fly, nginx...)
 ```
 
 > `DB_PASSWORD` and `JWT_SECRET` are required. The app throws on startup if either is missing.
@@ -133,8 +138,8 @@ Health check: `http://localhost:3000/health`
 
 | Method | Route | Access | Description |
 |---|---|---|---|
-| GET | `/api/tasks` | auth | All tasks (owned + collaborated) |
-| GET | `/api/tasks/mine` | auth | Only tasks owned by the caller |
+| GET | `/api/tasks` | auth | All tasks (owned + collaborated). Query: `status`, `priority` (comma-separated), `overdue`, `dueAfter`, `dueBefore`, `sort` (`dueDate`, `-priority`...), `page`, `limit`. Pagination in `meta` |
+| GET | `/api/tasks/mine` | auth | Only tasks owned by the caller (same query params) |
 | POST | `/api/tasks` | auth | Create a task (`title`, optional `description`, `status`, `priority` low/medium/high, `dueDate` YYYY-MM-DD) |
 | GET | `/api/tasks/:id` | owner or collaborator | Get task details |
 | PUT | `/api/tasks/:id` | owner or editor | Update a task (`dueDate: null` clears it; `userId`/`id` are ignored) |
@@ -179,6 +184,8 @@ task_collaborators
 
 - JWT Bearer tokens — stateless authentication
 - Bcrypt password hashing
+- Rate limiting on login (failed attempts only) and register — 429 after 10 attempts per IP per 15 min
+- Centralized access control (`src/policies/taskPolicy.js`) and a whitelist of writable task fields
 - Helmet — 15 security headers (removes `X-Powered-By`, adds CSP, HSTS, etc.)
 - Input validation on all write endpoints via express-validator
 - Centralized error handling — consistent error format; stack traces only in development, generic message for 500 errors in production
@@ -198,10 +205,10 @@ Tests run against an in-memory SQLite database (isolated from production), built
 ```
 tests/
 ├── unit/           # in isolation (taskPolicy, taskService, collaboratorService, errorMiddleware)
-└── integration/    # HTTP endpoints via Supertest (auth, tasks, collaborators) + migrations
+└── integration/    # HTTP endpoints via Supertest (auth, tasks, task list filters, collaborators, rate limiting) + migrations
 ```
 
-137 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
+166 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
 
 ---
 

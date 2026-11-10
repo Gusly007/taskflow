@@ -37,14 +37,14 @@ describe('taskService', () => {
   // ==================== GET ALL ====================
 
   describe('getAllByUser', () => {
-    it('returns owned and collaborated tasks', async () => {
+    it('returns owned and collaborated tasks with pagination meta', async () => {
       const mockTasks = [{ id: 1 }, { id: 2 }];
-      taskRepository.findAllIncludingCollaborated.mockResolvedValue(mockTasks);
+      taskRepository.findAllIncludingCollaborated.mockResolvedValue({ rows: mockTasks, count: 45 });
 
-      const result = await taskService.getAllByUser(5);
+      const result = await taskService.getAllByUser(5, { page: 2, limit: 20 });
 
-      expect(taskRepository.findAllIncludingCollaborated).toHaveBeenCalledWith(5);
-      expect(result).toEqual(mockTasks);
+      expect(taskRepository.findAllIncludingCollaborated).toHaveBeenCalledWith(5, expect.objectContaining({ limit: 20, offset: 20 }));
+      expect(result).toEqual({ items: mockTasks, meta: { page: 2, limit: 20, total: 45, totalPages: 3 } });
     });
   });
 
@@ -53,12 +53,44 @@ describe('taskService', () => {
   describe('getMyTasks', () => {
     it('returns only owned tasks', async () => {
       const mockTasks = [{ id: 1, userId: 5 }];
-      taskRepository.findAllByUser.mockResolvedValue(mockTasks);
+      taskRepository.findAllByUser.mockResolvedValue({ rows: mockTasks, count: 1 });
 
-      const result = await taskService.getMyTasks(5);
+      const result = await taskService.getMyTasks(5, {});
 
-      expect(taskRepository.findAllByUser).toHaveBeenCalledWith(5);
-      expect(result).toEqual(mockTasks);
+      expect(taskRepository.findAllByUser).toHaveBeenCalledWith(5, expect.any(Object));
+      expect(result.items).toEqual(mockTasks);
+      expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
+    });
+  });
+
+  // ==================== LIST OPTIONS ====================
+
+  describe('buildListOptions', () => {
+    it('uses defaults: page 1, 20 per page, newest first', () => {
+      const options = taskService.buildListOptions({}, '2026-11-10');
+
+      expect(options).toMatchObject({
+        page: 1,
+        limit: 20,
+        offset: 0,
+        sort: { field: 'createdAt', direction: 'DESC' },
+        filters: { today: '2026-11-10' },
+      });
+    });
+
+    it('parses sort direction from the - prefix', () => {
+      expect(taskService.buildListOptions({ sort: 'dueDate' }).sort).toEqual({ field: 'dueDate', direction: 'ASC' });
+      expect(taskService.buildListOptions({ sort: '-priority' }).sort).toEqual({ field: 'priority', direction: 'DESC' });
+    });
+
+    it('computes the offset from page and limit', () => {
+      expect(taskService.buildListOptions({ page: 3, limit: 10 }).offset).toBe(20);
+    });
+
+    it('passes filters through', () => {
+      const { filters } = taskService.buildListOptions({ status: ['todo'], priority: ['high'], overdue: true });
+
+      expect(filters).toMatchObject({ status: ['todo'], priority: ['high'], overdue: true });
     });
   });
 

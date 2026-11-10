@@ -1,5 +1,9 @@
+const { matchedData } = require('express-validator');
 const taskService = require('../services/taskService');
 const ApiResponse = require('../utils/apiResponse');
+
+// Validated + sanitized query params (?status=todo,done&page=2 -> { status: ['todo','done'], page: 2 })
+const listQuery = (req) => matchedData(req, { locations: ['query'] });
 exports.create = async (req, res, next) => {
   try {
     const task = await taskService.create(req.user.id, req.body);
@@ -11,8 +15,8 @@ exports.create = async (req, res, next) => {
 
 exports.getAll = async (req, res, next) => {
   try {
-    const tasks = await taskService.getAllByUser(req.user.id);
-    res.status(200).json(ApiResponse.success('Tasks retrieved successfully', tasks));
+    const { items, meta } = await taskService.getAllByUser(req.user.id, listQuery(req));
+    res.status(200).json(ApiResponse.success('Tasks retrieved successfully', items, 200, meta));
   } catch (error) {
     next(error);
   }
@@ -48,8 +52,8 @@ exports.remove = async (req, res, next) => {
 
 exports.getMine = async (req, res, next) => {
   try {
-    const tasks = await taskService.getMyTasks(req.user.id);
-    res.status(200).json(ApiResponse.success('My tasks retrieved successfully', tasks));
+    const { items, meta } = await taskService.getMyTasks(req.user.id, listQuery(req));
+    res.status(200).json(ApiResponse.success('My tasks retrieved successfully', items, 200, meta));
   } catch (error) {
     next(error);
   }

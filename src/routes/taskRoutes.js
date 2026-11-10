@@ -3,7 +3,7 @@ const router = express.Router();
 const taskController = require('../controllers/taskController');
 const collaboratorController = require('../controllers/collaboratorController');
 const auth = require('../middlewares/authMiddleware');
-const { validateCreateTask, validateUpdateTask } = require('../validators/taskValidator');
+const { validateCreateTask, validateUpdateTask, validateListTasks } = require('../validators/taskValidator');
 const { validateAddCollaborator, validateUpdateRole } = require('../validators/collaboratorValidator');
 const validate = require('../middlewares/validateMiddleware');
 const { validateTaskId, validateCollaboratorParams } = require('../validators/paramValidator');
@@ -68,33 +68,99 @@ router.post('/', validateCreateTask, validate, taskController.create);
  * @swagger
  * /tasks:
  *   get:
- *     summary: Get all tasks (owned + collaborated)
+ *     summary: Get all tasks (owned + collaborated), filtered, sorted and paginated
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema: { type: string, example: 'todo,in-progress' }
+ *         description: One or more statuses, comma-separated
+ *       - in: query
+ *         name: priority
+ *         schema: { type: string, example: 'high' }
+ *         description: One or more priorities (low, medium, high), comma-separated
+ *       - in: query
+ *         name: overdue
+ *         schema: { type: boolean }
+ *         description: true = due date in the past and not done; false = everything else
+ *       - in: query
+ *         name: dueAfter
+ *         schema: { type: string, format: date }
+ *         description: Due on or after this day (YYYY-MM-DD)
+ *       - in: query
+ *         name: dueBefore
+ *         schema: { type: string, format: date }
+ *         description: Due on or before this day (YYYY-MM-DD)
+ *       - in: query
+ *         name: sort
+ *         schema: { type: string, default: '-createdAt', example: 'dueDate' }
+ *         description: createdAt, updatedAt, dueDate, priority, title or status. Prefix with - for descending. Tasks without due date always come last.
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
  *     responses:
  *       200:
- *         description: List of tasks
+ *         description: Page of tasks in data, pagination in meta { page, limit, total, totalPages }
+ *       400:
+ *         description: Invalid query parameter
  *       401:
  *         description: Unauthorized
  */
-router.get('/', taskController.getAll);
+router.get('/', validateListTasks, validate, taskController.getAll);
 
 /**
  * @swagger
  * /tasks/mine:
  *   get:
- *     summary: Get only tasks owned by the authenticated user
+ *     summary: Get only tasks owned by the authenticated user (same filters as GET /tasks)
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema: { type: string, example: 'todo,in-progress' }
+ *         description: One or more statuses, comma-separated
+ *       - in: query
+ *         name: priority
+ *         schema: { type: string, example: 'high' }
+ *         description: One or more priorities (low, medium, high), comma-separated
+ *       - in: query
+ *         name: overdue
+ *         schema: { type: boolean }
+ *         description: true = due date in the past and not done; false = everything else
+ *       - in: query
+ *         name: dueAfter
+ *         schema: { type: string, format: date }
+ *         description: Due on or after this day (YYYY-MM-DD)
+ *       - in: query
+ *         name: dueBefore
+ *         schema: { type: string, format: date }
+ *         description: Due on or before this day (YYYY-MM-DD)
+ *       - in: query
+ *         name: sort
+ *         schema: { type: string, default: '-createdAt', example: 'dueDate' }
+ *         description: createdAt, updatedAt, dueDate, priority, title or status. Prefix with - for descending. Tasks without due date always come last.
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
  *     responses:
  *       200:
- *         description: List of owned tasks
+ *         description: Page of owned tasks in data, pagination in meta
+ *       400:
+ *         description: Invalid query parameter
  *       401:
  *         description: Unauthorized
  */
-router.get('/mine', taskController.getMine);
+router.get('/mine', validateListTasks, validate, taskController.getMine);
 
 /**
  * @swagger
