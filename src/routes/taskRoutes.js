@@ -44,6 +44,16 @@ router.use(auth);
  *                 type: string
  *                 enum: [todo, in-progress, done]
  *                 default: todo
+ *               priority:
+ *                 type: string
+ *                 enum: [low, medium, high]
+ *                 default: medium
+ *               dueDate:
+ *                 type: string
+ *                 format: date
+ *                 nullable: true
+ *                 example: '2026-11-20'
+ *                 description: Calendar day (YYYY-MM-DD)
  *     responses:
  *       201:
  *         description: Task created successfully
@@ -144,6 +154,16 @@ router.get('/:id', validateTaskId, validate, taskController.getById);
  *               status:
  *                 type: string
  *                 enum: [todo, in-progress, done]
+ *               priority:
+ *                 type: string
+ *                 enum: [low, medium, high]
+ *               dueDate:
+ *                 type: string
+ *                 format: date
+ *                 nullable: true
+ *                 example: '2026-11-20'
+ *                 description: Calendar day (YYYY-MM-DD). Send null to remove the due date.
+ *             description: Any other field (userId, id...) is ignored.
  *     responses:
  *       200:
  *         description: Task updated successfully

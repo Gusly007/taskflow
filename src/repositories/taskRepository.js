@@ -2,7 +2,9 @@ const { Task, TaskCollaborator } = require('../models');
 const { Op } = require('sequelize');
 
 exports.create = async (data) => {
-  return Task.create(data);
+  const task = await Task.create(data);
+  // Reload so the response always contains every column (dueDate: null...), on SQLite as on PostgreSQL.
+  return task.reload();
 };
 
 exports.findAllByUser = async (userId) => {

@@ -1,13 +1,15 @@
 const request = require('supertest');
 const app = require('../../src/app');
 const { sequelize } = require('../../src/config/db');
+const { migrator } = require('../../src/db/migrator');
 const { createUser, createTask } = require('../helpers');
 
 let token;
 let userId;
 
 beforeAll(async () => {
-  await sequelize.sync({ force: true });
+  // Same schema as production: built by the real migrations, not by sync().
+  await migrator.up();
 });
 
 afterAll(async () => {
@@ -50,6 +52,53 @@ describe('Task API', () => {
       const res = await request(app).post('/api/tasks').set(auth()).send({ title: 'Task', status: 'invalid' });
 
       expect(res.status).toBe(400);
+    });
+
+    it('defaults priority to medium and dueDate to null', async () => {
+      const res = await request(app).post('/api/tasks').set(auth()).send({ title: 'Task' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.priority).toBe('medium');
+      expect(res.body.data.dueDate).toBeNull();
+    });
+
+    it('creates a task with priority and dueDate', async () => {
+      const res = await request(app)
+        .post('/api/tasks')
+        .set(auth())
+        .send({ title: 'Client report', priority: 'high', dueDate: '2026-11-20' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.priority).toBe('high');
+      expect(res.body.data.dueDate).toBe('2026-11-20');
+    });
+
+    it('returns 400 if priority is invalid', async () => {
+      const res = await request(app).post('/api/tasks').set(auth()).send({ title: 'Task', priority: 'urgent' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it.each(['20/11/2026', '2026-13-01', '2026-02-30', 'tomorrow', '2026-11-20T10:00:00Z'])(
+      'returns 400 if dueDate is %s',
+      async (dueDate) => {
+        const res = await request(app).post('/api/tasks').set(auth()).send({ title: 'Task', dueDate });
+
+        expect(res.status).toBe(400);
+      },
+    );
+
+    it('ignores id and userId sent in the body', async () => {
+      const other = await createUser({ email: 'other@test.com' });
+
+      const res = await request(app)
+        .post('/api/tasks')
+        .set(auth())
+        .send({ title: 'Task', id: 777, userId: other.userId });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.id).not.toBe(777);
+      expect(res.body.data.userId).toBe(userId);
     });
 
     it('returns 401 without token', async () => {
@@ -248,6 +297,46 @@ describe('Task API', () => {
       const res = await request(app).put('/api/tasks/99999').set(auth()).send({ title: 'Nope' });
 
       expect(res.status).toBe(404);
+    });
+
+    it('updates priority and dueDate, and removes dueDate with null', async () => {
+      const task = await createTask(token, { dueDate: '2026-11-20' });
+
+      const res = await request(app)
+        .put(`/api/tasks/${task.id}`)
+        .set(auth())
+        .send({ priority: 'low', dueDate: '2026-12-01' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.priority).toBe('low');
+      expect(res.body.data.dueDate).toBe('2026-12-01');
+
+      const cleared = await request(app).put(`/api/tasks/${task.id}`).set(auth()).send({ dueDate: null });
+
+      expect(cleared.status).toBe(200);
+      expect(cleared.body.data.dueDate).toBeNull();
+    });
+
+    it('an editor cannot take ownership of a task by sending userId', async () => {
+      const user2 = await createUser({ email: 'user2@test.com' });
+      const task = await createTask(user2.token);
+
+      await request(app)
+        .post(`/api/tasks/${task.id}/collaborators`)
+        .set('Authorization', `Bearer ${user2.token}`)
+        .send({ userId, role: 'editor' });
+
+      const res = await request(app)
+        .put(`/api/tasks/${task.id}`)
+        .set(auth())
+        .send({ title: 'Mine now?', userId });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.userId).toBe(user2.userId);
+
+      // and therefore still cannot delete it
+      const del = await request(app).delete(`/api/tasks/${task.id}`).set(auth());
+      expect(del.status).toBe(403);
     });
 
     it('returns 400 if title is empty string', async () => {

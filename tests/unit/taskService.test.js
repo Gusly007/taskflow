@@ -20,6 +20,18 @@ describe('taskService', () => {
       expect(taskRepository.create).toHaveBeenCalledWith({ title: 'Task', userId: 5 });
       expect(result).toEqual(mockTask);
     });
+
+    it('keeps only writable fields (drops id, userId, createdAt...)', async () => {
+      taskRepository.create.mockResolvedValue({});
+
+      await taskService.create(5, {
+        title: 'Task', priority: 'high', dueDate: '2026-11-20', id: 777, userId: 9, createdAt: 'x',
+      });
+
+      expect(taskRepository.create).toHaveBeenCalledWith({
+        title: 'Task', priority: 'high', dueDate: '2026-11-20', userId: 5,
+      });
+    });
   });
 
   // ==================== GET ALL ====================
@@ -96,6 +108,16 @@ describe('taskService', () => {
 
       expect(taskRepository.update).toHaveBeenCalledWith(1, { title: 'New Title' });
       expect(result.title).toBe('New Title');
+    });
+
+    it('never passes userId or id to the repository', async () => {
+      taskRepository.findById.mockResolvedValue({ id: 1, userId: 999 });
+      collaboratorRepository.getCollaboratorRole.mockResolvedValue('editor');
+      taskRepository.update.mockResolvedValue({});
+
+      await taskService.update(1, 5, { title: 'T', userId: 5, id: 42 });
+
+      expect(taskRepository.update).toHaveBeenCalledWith(1, { title: 'T' });
     });
 
     it('allows editor collaborator to update', async () => {

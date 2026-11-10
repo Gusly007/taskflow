@@ -30,6 +30,8 @@ Built as the backend foundation for a future multi-tenant SaaS platform where or
 ```
 src/
 ├── config/         # DB connection, env variables
+├── db/             # Umzug migrator + versioned migrations
+├── policies/       # Centralized access control (taskPolicy)
 ├── controllers/    # HTTP handlers — parse request, call service, send response
 ├── services/       # Business logic — rules, access control
 ├── repositories/   # Data access — Sequelize queries only
@@ -87,6 +89,9 @@ JWT_EXPIRES_IN=1d
 ### Run
 
 ```bash
+# Apply database migrations (also done automatically on startup)
+npm run migrate
+
 # Development (auto-restart on file change)
 npm run dev
 
@@ -130,9 +135,9 @@ Health check: `http://localhost:3000/health`
 |---|---|---|---|
 | GET | `/api/tasks` | auth | All tasks (owned + collaborated) |
 | GET | `/api/tasks/mine` | auth | Only tasks owned by the caller |
-| POST | `/api/tasks` | auth | Create a task |
+| POST | `/api/tasks` | auth | Create a task (`title`, optional `description`, `status`, `priority` low/medium/high, `dueDate` YYYY-MM-DD) |
 | GET | `/api/tasks/:id` | owner or collaborator | Get task details |
-| PUT | `/api/tasks/:id` | owner or editor | Update a task |
+| PUT | `/api/tasks/:id` | owner or editor | Update a task (`dueDate: null` clears it; `userId`/`id` are ignored) |
 | DELETE | `/api/tasks/:id` | owner only | Delete a task |
 
 ### Collaborators — `/api/tasks/:id/collaborators` *(requires Bearer token)*
@@ -188,15 +193,15 @@ npm test               # run all tests
 npm run test:coverage  # with coverage report
 ```
 
-Tests run against an in-memory SQLite database (isolated from production).
+Tests run against an in-memory SQLite database (isolated from production), built with the real migrations. CI also runs every migration up, down and up again on PostgreSQL 16, and checks that the Docker image builds.
 
 ```
 tests/
-├── unit/           # services in isolation (taskService, collaboratorService)
-└── integration/    # HTTP endpoints via Supertest (auth, tasks, collaborators)
+├── unit/           # in isolation (taskPolicy, taskService, collaboratorService, errorMiddleware)
+└── integration/    # HTTP endpoints via Supertest (auth, tasks, collaborators) + migrations
 ```
 
-80 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
+137 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
 
 ---
 

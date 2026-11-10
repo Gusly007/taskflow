@@ -17,6 +17,7 @@ API REST de gestion de tâches collaboratives.
 ```bash
 npm install
 cp .env.example .env      # remplir DB_PASSWORD et JWT_SECRET (obligatoires)
+npm run migrate           # applique les migrations en attente (aussi fait auto au démarrage)
 npm run dev               # dev avec rechargement auto
 npm test                  # tests (SQLite en mémoire)
 npm run test:coverage     # tests + couverture
@@ -26,6 +27,20 @@ docker compose up -d      # API + PostgreSQL 16 en conteneurs
 - API : `http://localhost:3000`
 - Swagger : `http://localhost:3000/api-docs`
 - Health check : `http://localhost:3000/health`
+
+### Migrations (schéma de la BDD)
+
+Le schéma n'est **plus** créé par `sequelize.sync()` : il est versionné dans `src/db/migrations/` (Umzug, format compatible sequelize-cli, suivi dans la table `SequelizeMeta`). `src/server.js` applique les migrations en attente au démarrage, donc `docker compose up` met la base à jour tout seul.
+
+```bash
+npm run migrate:status    # migrations appliquées / en attente
+npm run migrate           # appliquer
+npm run migrate:undo      # annuler la dernière
+npm run migrate:undo:all  # tout annuler (vide la base !)
+```
+
+- **Changer le schéma** = créer un nouveau fichier `src/db/migrations/AAAAMMJJ-NN-description.js` avec `up` et `down`, puis mettre le modèle à jour. Ne jamais modifier une migration déjà appliquée.
+- `20261110-01-initial-schema` : schéma de base. Sur une base créée avant les migrations (ton volume Docker), elle ne fait rien et se marque comme appliquée.
 
 ---
 
@@ -47,6 +62,7 @@ Requête → Route → Middlewares → Controller → Service → Repository →
 | Models | `src/models/` | Tables + relations (`models/index.js`) | — |
 | Utils | `src/utils/` | `ApiError`, `ApiResponse`, `jwt`, `hash` | — |
 | Config | `src/config/` | Connexion BDD, variables d'env | — |
+| Migrations | `src/db/` | `migrator.js` (Umzug + CLI) et `migrations/` versionnées | Seule façon de modifier le schéma |
 
 ---
 
@@ -54,11 +70,13 @@ Requête → Route → Middlewares → Controller → Service → Repository →
 
 ```
 users               id, name, email (unique), password (hashé)
-tasks               id, title, description, status (todo | in-progress | done), userId → users
+tasks               id, title, description, status (todo | in-progress | done), priority (low | medium | high, défaut medium),
+                    dueDate (date AAAA-MM-JJ, nullable, indexée), userId → users
 task_collaborators  id, taskId → tasks, userId → users, role (viewer | editor), UNIQUE (taskId, userId)
 ```
 
 - Un `User` possède plusieurs `Task` (suppression en cascade).
+- Champs modifiables par le client : `title`, `description`, `status`, `priority`, `dueDate` (liste blanche `WRITABLE_FIELDS` dans `taskService`). Tout autre champ envoyé (`userId`, `id`…) est ignoré.
 - `TaskCollaborator` relie `Task` ↔ `User` avec un rôle. Les FK et le `UNIQUE` sont ajoutés automatiquement par `belongsToMany` dans `models/index.js` (cascade à la suppression d'une tâche ou d'un user).
 
 ---
@@ -78,11 +96,11 @@ task_collaborators  id, taskId → tasks, userId → users, role (viewer | edito
 
 | Méthode | Route | Ce qu'elle fait | Accès |
 |---|---|---|---|
-| POST | `/api/tasks` | Créer une tâche | Connecté |
+| POST | `/api/tasks` | Créer une tâche (`title` requis, `description`, `status`, `priority`, `dueDate` optionnels) | Connecté |
 | GET | `/api/tasks` | Mes tâches + celles où je collabore | Connecté |
 | GET | `/api/tasks/mine` | Seulement mes tâches | Connecté |
 | GET | `/api/tasks/:id` | Détail d'une tâche | Propriétaire ou collaborateur |
-| PUT | `/api/tasks/:id` | Modifier une tâche | Propriétaire ou `editor` |
+| PUT | `/api/tasks/:id` | Modifier une tâche (`dueDate: null` retire l'échéance) | Propriétaire ou `editor` |
 | DELETE | `/api/tasks/:id` | Supprimer une tâche → 204 sans corps | Propriétaire |
 
 ### Collaborateurs — JWT requis
@@ -129,11 +147,18 @@ Pour renvoyer une erreur depuis un service : `throw new ApiError(403, 'message')
 ```
 tests/
 ├── setup.js, helpers.js
-├── unit/          taskPolicy (18), taskService (16), collaboratorService (17), errorMiddleware (5)
-└── integration/   auth (9), task (26), collaborator (30)
+├── unit/          taskPolicy (18), taskService (18), collaboratorService (17), errorMiddleware (5)
+└── integration/   auth (9), task (37), collaborator (30), migrations (3)
 ```
 
-**121 tests.** La CI (`.github/workflows/ci.yml`) lance `npm test` à chaque push et PR.
+**137 tests.** Les tests construisent la base SQLite avec les **vraies migrations** (pas `sync`).
+
+La CI (`.github/workflows/ci.yml`) tourne à chaque push et PR, avec 3 jobs :
+- **Run tests** : `npm ci` + `npm test`.
+- **Migrations on PostgreSQL** : sur un vrai PostgreSQL 16, `migrate` → `migrate:undo:all` → `migrate`.
+- **Docker build** : vérifie que l'image de prod se construit (lock file, Dockerfile).
+
+⚠️ Sous Windows, `npm install` peut retirer du `package-lock.json` des dépendances optionnelles d'autres OS, et `npm ci` échoue ensuite en CI et dans Docker. Pour installer un projet existant, utiliser `npm ci`.
 
 ---
 
@@ -157,6 +182,7 @@ tests/
 | 2026-10-28 | Ajout du scaffold frontend Next.js (`frontend/taskflowfront/`) · Jest 30.4.2 |
 | 2026-11-10 | Contrôle d'accès centralisé (`src/policies/taskPolicy.js`) · faille `GET /:id/collaborators` corrigée · 404 au lieu de 403 sans aucun droit · validation des ids d'URL · 404 si on ajoute un utilisateur inexistant · 80 → 116 tests |
 | 2026-11-10 | `register` / `login` au format `ApiResponse` · `statusCode` du corps aligné sur le code HTTP (201) · stack en dev uniquement, 500 génériques hors dev · `DELETE` 204 sans corps · 116 → 121 tests |
+| 2026-11-10 | **Faille corrigée** : un `editor` pouvait devenir propriétaire via `PUT { userId }` (liste blanche des champs) · migrations Umzug à la place de `sync` · `priority` + `dueDate` sur les tâches · CI : migrations sur PostgreSQL + docker build · 121 → 137 tests |
 
 ---
 

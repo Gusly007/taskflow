@@ -19,6 +19,16 @@ const Task = sequelize.define('Task', {
     type: DataTypes.ENUM('todo', 'in-progress', 'done'),
     defaultValue: 'todo',
   },
+  priority: {
+    type: DataTypes.ENUM('low', 'medium', 'high'),
+    allowNull: false,
+    defaultValue: 'medium',
+  },
+  dueDate: {
+    // Calendar day only ("2026-11-20"), so no time zone surprises.
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  },
   userId: {
     type: DataTypes.INTEGER,
     allowNull: false,

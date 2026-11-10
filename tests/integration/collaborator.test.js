@@ -1,12 +1,14 @@
 const request = require('supertest');
 const app = require('../../src/app');
 const { sequelize } = require('../../src/config/db');
+const { migrator } = require('../../src/db/migrator');
 const { createUser, createTask } = require('../helpers');
 
 let owner, ownerToken, collaboratorUser, collaboratorToken, task;
 
 beforeAll(async () => {
-  await sequelize.sync({ force: true });
+  // Same schema as production: built by the real migrations, not by sync().
+  await migrator.up();
 });
 
 afterAll(async () => {
