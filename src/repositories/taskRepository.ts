@@ -11,6 +11,7 @@ export interface TaskFilters {
   overdue?: boolean;
   dueAfter?: string;
   dueBefore?: string;
+  projectId?: number;
   today: string;
 }
 
@@ -35,8 +36,9 @@ export interface TaskPage {
 type TaskWhere = WhereOptions<Task>;
 
 // Filters -> Sequelize conditions.
-const buildFilters = ({ status, priority, overdue, dueAfter, dueBefore, today }: TaskFilters): TaskWhere[] => {
+const buildFilters = ({ status, priority, overdue, dueAfter, dueBefore, projectId, today }: TaskFilters): TaskWhere[] => {
   const conditions: TaskWhere[] = [];
+  if (projectId) conditions.push({ projectId });
   if (status) conditions.push({ status: { [Op.in]: status } });
   if (priority) conditions.push({ priority: { [Op.in]: priority } });
   if (dueAfter) conditions.push({ dueDate: { [Op.gte]: dueAfter } });
@@ -82,7 +84,13 @@ export const create = async (data: CreationAttributes<Task>): Promise<Task> => {
 export const findAllByUser = async (userId: number, options: TaskListOptions): Promise<TaskPage> =>
   findPage({ userId }, options);
 
-export const findAllIncludingCollaborated = async (userId: number, options: TaskListOptions): Promise<TaskPage> => {
+// Every task the user can see: owned, shared with them as a collaborator, or in one of
+// projectIds (the projects they own or are a member of).
+export const findAllIncludingCollaborated = async (
+  userId: number,
+  options: TaskListOptions,
+  projectIds: number[] = [],
+): Promise<TaskPage> => {
   const collaborations = await TaskCollaborator.findAll({
     where: { userId },
     attributes: ['taskId'],
@@ -90,14 +98,20 @@ export const findAllIncludingCollaborated = async (userId: number, options: Task
   const collaboratedIds = collaborations.map((c) => c.taskId);
 
   const scope: TaskWhere = {
-    [Op.or]: [{ userId }, ...(collaboratedIds.length ? [{ id: collaboratedIds }] : [])],
+    [Op.or]: [
+      { userId },
+      ...(collaboratedIds.length ? [{ id: collaboratedIds }] : []),
+      ...(projectIds.length ? [{ projectId: projectIds }] : []),
+    ],
   };
   return findPage(scope, options);
 };
 
 export const findById = async (id: number): Promise<Task | null> => Task.findByPk(id);
 
-export const update = async (id: number, data: Partial<CreationAttributes<Task>>): Promise<Task | null> => {
+export type TaskChanges = Partial<CreationAttributes<Task>>;
+
+export const update = async (id: number, data: TaskChanges): Promise<Task | null> => {
   const task = await Task.findByPk(id);
   if (!task) return null;
   return task.update(data);

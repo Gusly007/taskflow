@@ -71,7 +71,7 @@ Requête → Route → Middlewares → Controller → Service → Repository →
 | Validators | `src/validators/` | Règles express-validator (`paramValidator` : ids d'URL entiers, sinon 400) | Un fichier par ressource |
 | Controllers | `src/controllers/` | Lit `req`, appelle le service, renvoie la réponse | Pas de logique métier |
 | Services | `src/services/` | Logique métier, lance des `ApiError` | Peut appeler plusieurs repositories et les policies, jamais un autre service |
-| Policies | `src/policies/` | **Contrôle d'accès centralisé** : `taskPolicy.assertTaskAccess(taskId, userId, rôle requis)` | Toute opération sur une tâche existante passe par là |
+| Policies | `src/policies/` | **Contrôle d'accès centralisé** : `taskPolicy.assertTaskAccess(taskId, userId, rôle requis)` et `projectPolicy.assertProjectAccess(projectId, userId, rôle requis)` | Toute opération sur une tâche ou un projet existant passe par là |
 | Repositories | `src/repositories/` | Requêtes Sequelize | Seule couche qui touche à la BDD |
 | Models | `src/models/` | Classes typées + relations (`models/index.ts`) + valeurs autorisées (statuts, priorités, rôles) | — |
 | Utils | `src/utils/` | `ApiError`, `ApiResponse`, `jwt`, `hash` | — |
@@ -86,12 +86,17 @@ Requête → Route → Middlewares → Controller → Service → Repository →
 ```
 users               id, name, email (unique), password (hashé)
 tasks               id, title, description, status (todo | in-progress | done), priority (low | medium | high, défaut medium),
-                    dueDate (date AAAA-MM-JJ, nullable, indexée), userId → users
+                    dueDate (date AAAA-MM-JJ, nullable, indexée), userId → users,
+                    projectId → projects (nullable, indexée, ON DELETE SET NULL)
 task_collaborators  id, taskId → tasks, userId → users, role (viewer | editor), UNIQUE (taskId, userId)
+projects            id, name, description, ownerId → users (cascade)
+project_members     id, projectId → projects, userId → users, role (viewer | editor), UNIQUE (projectId, userId)
 ```
 
 - Un `User` possède plusieurs `Task` (suppression en cascade).
 - Champs modifiables par le client : `title`, `description`, `status`, `priority`, `dueDate` (liste blanche `WRITABLE_FIELDS` dans `taskService`). Tout autre champ envoyé (`userId`, `id`…) est ignoré.
+- Un `Project` a un propriétaire (`ownerId`, jamais dans `project_members`) et des membres `ProjectMember` (viewer / editor). Supprimer un projet **garde ses tâches** : elles redeviennent des tâches perso (`projectId` → null).
+- `projectId` n'est pas dans `WRITABLE_FIELDS` : il est traité à part dans `taskService` (rôle editor requis dans le projet cible, et seul le propriétaire de la tâche peut la déplacer).
 - `TaskCollaborator` relie `Task` ↔ `User` avec un rôle. Les FK et le `UNIQUE` sont ajoutés automatiquement par `belongsToMany` dans `models/index.ts` (cascade à la suppression d'une tâche ou d'un user).
 
 ---
@@ -111,11 +116,11 @@ task_collaborators  id, taskId → tasks, userId → users, role (viewer | edito
 
 | Méthode | Route | Ce qu'elle fait | Accès |
 |---|---|---|---|
-| POST | `/api/tasks` | Créer une tâche (`title` requis, `description`, `status`, `priority`, `dueDate` optionnels) | Connecté |
-| GET | `/api/tasks` | Mes tâches + celles où je collabore (filtres, tri, pagination : voir ci-dessous) | Connecté |
+| POST | `/api/tasks` | Créer une tâche (`title` requis, `description`, `status`, `priority`, `dueDate`, `projectId` optionnels) · `projectId` : rôle editor requis dans le projet (403 si viewer, 404 si pas membre) | Connecté |
+| GET | `/api/tasks` | Mes tâches + celles où je collabore + **celles des projets dont je suis propriétaire ou membre** (filtres, tri, pagination : voir ci-dessous) | Connecté |
 | GET | `/api/tasks/mine` | Seulement mes tâches (mêmes paramètres) | Connecté |
-| GET | `/api/tasks/:id` | Détail d'une tâche | Propriétaire ou collaborateur |
-| PUT | `/api/tasks/:id` | Modifier une tâche (`dueDate: null` retire l'échéance) | Propriétaire ou `editor` |
+| GET | `/api/tasks/:id` | Détail d'une tâche | Propriétaire, collaborateur ou membre du projet |
+| PUT | `/api/tasks/:id` | Modifier une tâche (`dueDate: null` retire l'échéance · changer `projectId` : propriétaire de la tâche uniquement) | Propriétaire ou `editor` |
 | DELETE | `/api/tasks/:id` | Supprimer une tâche → 204 sans corps | Propriétaire |
 
 ### Collaborateurs — JWT requis
@@ -133,6 +138,23 @@ task_collaborators  id, taskId → tasks, userId → users, role (viewer | edito
 - Tâche inexistante **ou** aucun droit dessus → **404** `Task not found` (un inconnu ne peut pas savoir si un id existe).
 - Accès à la tâche mais rôle insuffisant (ex. `viewer` qui modifie) → **403**.
 - Id non numérique dans l'URL → **400**.
+- Le rôle sur une tâche est le **plus élevé** de : propriétaire, rôle collaborateur, rôle obtenu via le projet de la tâche (propriétaire ou editor du projet → `editor`, viewer du projet → `viewer`). Supprimer la tâche et gérer ses collaborateurs restent réservés au propriétaire de la tâche.
+
+### Projets — JWT requis
+
+| Méthode | Route | Ce qu'elle fait | Accès |
+|---|---|---|---|
+| POST | `/api/projects` | Créer un projet (`name` requis, `description`) → je deviens propriétaire | Connecté |
+| GET | `/api/projects` | Projets dont je suis propriétaire ou membre, chacun avec mon `role` | Connecté |
+| GET | `/api/projects/:id` | Détail + mon `role` | Membre |
+| PUT | `/api/projects/:id` | Renommer / décrire | Propriétaire |
+| DELETE | `/api/projects/:id` | Supprimer → 204 · les tâches sont gardées (`projectId` → null) | Propriétaire |
+| GET | `/api/projects/:id/members` | Lister les membres | Membre |
+| POST | `/api/projects/:id/members` | Ajouter (`userId`, `role` = `viewer` par défaut) · 409 si déjà membre · 400 si c'est le propriétaire · 404 si l'utilisateur n'existe pas | Propriétaire |
+| PATCH | `/api/projects/:id/members/:userId` | Changer le rôle | Propriétaire |
+| DELETE | `/api/projects/:id/members/:userId` | Retirer un membre, ou quitter le projet (mon propre `userId`) · le propriétaire ne peut pas quitter (400) | Propriétaire, ou le membre lui-même |
+
+Mêmes règles que les tâches (`src/policies/projectPolicy.ts`) : projet inexistant ou pas membre → **404**, membre avec un rôle insuffisant → **403**.
 
 ---
 
@@ -144,6 +166,7 @@ task_collaborators  id, taskId → tasks, userId → users, role (viewer | edito
 | `priority` | `high` | Une ou plusieurs priorités |
 | `overdue` | `true` | `true` = échéance passée et pas `done` · `false` = tout le reste |
 | `dueAfter` / `dueBefore` | `2026-11-01` | Échéance comprise entre ces jours (inclus) |
+| `projectId` | `3` | Seulement les tâches de ce projet (sur `/api/tasks` : 404 si je ne suis pas membre) |
 | `sort` | `dueDate`, `-priority` | `createdAt`, `updatedAt`, `dueDate`, `priority`, `title`, `status` · `-` = décroissant · défaut `-createdAt` |
 | `page` / `limit` | `2` / `50` | Pagination · défaut page 1, 20 par page, max 100 |
 
@@ -190,11 +213,11 @@ Pour renvoyer une erreur depuis un service : `throw new ApiError(403, 'message')
 ```
 tests/
 ├── setup.ts, helpers.ts, fakes.ts (faux modèles typés pour les tests unitaires)
-├── unit/          taskPolicy (18), taskService (22), collaboratorService (17), errorMiddleware (5)
-└── integration/   auth (9), task (37), taskList (22), collaborator (30), migrations (3), rateLimit (3)
+├── unit/          taskPolicy (26), taskService (25), collaboratorService (17), errorMiddleware (5)
+└── integration/   auth (9), task (37), taskList (22), collaborator (30), project (38), migrations (4), rateLimit (3)
 ```
 
-**166 tests.** Les tests construisent la base SQLite avec les **vraies migrations** (pas `sync`).
+**216 tests.** Les tests construisent la base SQLite avec les **vraies migrations** (pas `sync`).
 
 La CI (`.github/workflows/ci.yml`) tourne à chaque push et PR, avec 3 jobs :
 - **Run tests** : `npm ci` + `npm test` (ts-jest vérifie les types : une erreur de type fait échouer les tests).
@@ -229,6 +252,7 @@ Le Dockerfile a 3 étapes : `build` (compile le TypeScript), `deps` (dépendance
 | 2026-11-10 | `register` / `login` au format `ApiResponse` · `statusCode` du corps aligné sur le code HTTP (201) · stack en dev uniquement, 500 génériques hors dev · `DELETE` 204 sans corps · 116 → 121 tests |
 | 2026-11-10 | **Faille corrigée** : un `editor` pouvait devenir propriétaire via `PUT { userId }` (liste blanche des champs) · migrations Umzug à la place de `sync` · `priority` + `dueDate` sur les tâches · CI : migrations sur PostgreSQL + docker build · 121 → 137 tests |
 | 2026-11-10 | Filtres (`status`, `priority`, `overdue`, `dueAfter`/`dueBefore`), tri et pagination (`meta`) sur `GET /tasks` et `/tasks/mine` · rate limiting login/register (429) · `TRUST_PROXY` · 137 → 166 tests |
+| 2026-11-25 | **Projets** : tables `projects` + `project_members` (viewer / editor), `tasks.projectId` · routes `/api/projects` (CRUD + membres) · `GET /api/tasks` inclut les tâches des projets dont on est membre, filtre `?projectId=` · rôle sur une tâche = le plus élevé (propriétaire, collaborateur, projet) · `projectPolicy` · migration testée sur PostgreSQL 16 · 166 → 216 tests |
 | 2026-11-25 | **Migration complète vers TypeScript strict** (src + tests) · modèles Sequelize typés · build `dist/` + Dockerfile multi-étapes · `tsx` en dev · `collaboratorRepositorie` renommé `collaboratorRepository` · code mort supprimé (`ownerTask`, `getTasksForCollaborator`…) · 166 tests |
 
 ---

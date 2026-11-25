@@ -19,8 +19,10 @@ describe('Database migrations', () => {
     await migrator.up();
 
     expect(await migrator.pending()).toHaveLength(0);
-    expect(await tables()).toEqual(expect.arrayContaining(['users', 'tasks', 'task_collaborators']));
-    expect(await columnsOf('tasks')).toEqual(expect.arrayContaining(['priority', 'dueDate']));
+    expect(await tables()).toEqual(
+      expect.arrayContaining(['users', 'tasks', 'task_collaborators', 'projects', 'project_members']),
+    );
+    expect(await columnsOf('tasks')).toEqual(expect.arrayContaining(['priority', 'dueDate', 'projectId']));
   });
 
   it('can be fully rolled back and re-applied', async () => {
@@ -33,8 +35,23 @@ describe('Database migrations', () => {
     expect(await columnsOf('tasks')).toEqual(expect.arrayContaining(['priority', 'dueDate']));
   });
 
-  it('rolling back the last migration removes only dueDate and priority', async () => {
+  it('rolling back the last migration removes only the projects', async () => {
     await migrator.down();
+
+    expect(await tables()).not.toEqual(expect.arrayContaining(['projects']));
+    expect(await tables()).not.toEqual(expect.arrayContaining(['project_members']));
+    const columns = await columnsOf('tasks');
+    expect(columns).not.toContain('projectId');
+    expect(columns).toEqual(expect.arrayContaining(['title', 'priority', 'dueDate']));
+
+    await migrator.up();
+
+    expect(await tables()).toEqual(expect.arrayContaining(['projects', 'project_members']));
+    expect(await columnsOf('tasks')).toContain('projectId');
+  });
+
+  it('rolling back two migrations also removes dueDate and priority', async () => {
+    await migrator.down({ step: 2 });
 
     const columns = await columnsOf('tasks');
     expect(columns).not.toContain('priority');

@@ -19,6 +19,8 @@ class Task extends Model<InferAttributes<Task>, InferCreationAttributes<Task>> {
   // Calendar day only ("2026-11-20"): Sequelize returns DATEONLY as a string, not a Date.
   declare dueDate: CreationOptional<string | null>;
   declare userId: number;
+  // Project the task belongs to, or null for a personal task.
+  declare projectId: CreationOptional<number | null>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 }
@@ -56,6 +58,14 @@ Task.init(
       allowNull: false,
       references: {
         model: 'users',
+        key: 'id',
+      },
+    },
+    projectId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'projects',
         key: 'id',
       },
     },

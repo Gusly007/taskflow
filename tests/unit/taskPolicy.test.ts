@@ -1,15 +1,23 @@
-import { getTaskRole, assertTaskAccess, type TaskRole } from '../../src/policies/taskPolicy';
+import {
+  getTaskRole,
+  assertTaskAccess,
+  taskRoleFromProjectRole,
+  type TaskRole,
+} from '../../src/policies/taskPolicy';
 import * as taskRepositoryModule from '../../src/repositories/taskRepository';
 import * as collaboratorRepositoryModule from '../../src/repositories/collaboratorRepository';
-import { fakeTask } from '../fakes';
+import * as projectRepositoryModule from '../../src/repositories/projectRepository';
+import { fakeProject, fakeTask } from '../fakes';
 
 // Hoisted above the imports by ts-jest, so the services get the mocks.
 jest.mock('../../src/repositories/taskRepository');
 jest.mock('../../src/repositories/collaboratorRepository');
+jest.mock('../../src/repositories/projectRepository');
 
 // jest.mock() replaced every export with a jest.fn(); jest.mocked() gives them their mock types.
 const taskRepository = jest.mocked(taskRepositoryModule);
 const collaboratorRepository = jest.mocked(collaboratorRepositoryModule);
+const projectRepository = jest.mocked(projectRepositoryModule);
 
 describe('taskPolicy', () => {
   beforeEach(() => {
@@ -47,6 +55,57 @@ describe('taskPolicy', () => {
 
       expect(task).not.toBeNull();
       expect(role).toBeNull();
+    });
+  });
+
+  describe('role through the task project', () => {
+    beforeEach(() => {
+      taskRepository.findById.mockResolvedValue(fakeTask({ id: 1, userId: 5, projectId: 3 }));
+      projectRepository.findById.mockResolvedValue(fakeProject({ id: 3, ownerId: 8 }));
+      collaboratorRepository.getCollaboratorRole.mockResolvedValue(null);
+    });
+
+    it.each([
+      ['owner', 'editor'],
+      ['editor', 'editor'],
+      ['viewer', 'viewer'],
+      [null, null],
+    ] as const)('project role %s -> task role %s', (projectRole, taskRole) => {
+      expect(taskRoleFromProjectRole(projectRole)).toBe(taskRole);
+    });
+
+    it('a project viewer can see the task', async () => {
+      projectRepository.getMemberRole.mockResolvedValue('viewer');
+
+      const { role } = await getTaskRole(1, 7);
+
+      expect(role).toBe('viewer');
+    });
+
+    it('the project owner edits the task but is not its owner', async () => {
+      const { role } = await getTaskRole(1, 8);
+
+      expect(role).toBe('editor');
+      await expect(assertTaskAccess(1, 8, 'owner')).rejects.toMatchObject({ statusCode: 403 });
+    });
+
+    it('keeps the highest role when the user is both collaborator and project member', async () => {
+      collaboratorRepository.getCollaboratorRole.mockResolvedValue('viewer');
+      projectRepository.getMemberRole.mockResolvedValue('editor');
+
+      expect((await getTaskRole(1, 7)).role).toBe('editor');
+
+      collaboratorRepository.getCollaboratorRole.mockResolvedValue('editor');
+      projectRepository.getMemberRole.mockResolvedValue('viewer');
+
+      expect((await getTaskRole(1, 7)).role).toBe('editor');
+    });
+
+    it('does not look at projects for a task without project', async () => {
+      taskRepository.findById.mockResolvedValue(fakeTask({ id: 1, userId: 5, projectId: null }));
+
+      expect((await getTaskRole(1, 7)).role).toBeNull();
+      expect(projectRepository.findById).not.toHaveBeenCalled();
     });
   });
 

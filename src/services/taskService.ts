@@ -1,11 +1,15 @@
 import * as taskRepository from '../repositories/taskRepository';
+import * as projectRepository from '../repositories/projectRepository';
 import { assertTaskAccess, type Id } from '../policies/taskPolicy';
+import { assertProjectAccess } from '../policies/projectPolicy';
+import ApiError from '../utils/apiError';
 import type { Task } from '../models';
 import type { TaskPriority, TaskSortField, TaskStatus } from '../models/Task';
 import type { PageMeta } from '../utils/apiResponse';
 
 // Only these fields can come from the client. Everything else (id, userId, createdAt...)
 // is ignored, otherwise an editor could send { userId: <own id> } and steal the task.
+// projectId is handled on its own (see create and update): it needs extra checks.
 export const WRITABLE_FIELDS = ['title', 'description', 'status', 'priority', 'dueDate'] as const;
 
 export interface CreateTaskInput {
@@ -14,6 +18,8 @@ export interface CreateTaskInput {
   status?: TaskStatus;
   priority?: TaskPriority;
   dueDate?: string | null;
+  // Project to put the task in (null or absent = personal task).
+  projectId?: number | null;
 }
 
 export type UpdateTaskInput = Partial<CreateTaskInput>;
@@ -25,6 +31,7 @@ export interface ListTasksQuery {
   overdue?: boolean;
   dueAfter?: string;
   dueBefore?: string;
+  projectId?: number;
   sort?: TaskSortField | `-${TaskSortField}`;
   page?: number;
   limit?: number;
@@ -62,6 +69,7 @@ export const buildListOptions = (query: ListTasksQuery = {}, today: string = tod
       overdue: query.overdue,
       dueAfter: query.dueAfter,
       dueBefore: query.dueBefore,
+      projectId: query.projectId,
       today,
     },
     sort: {
@@ -79,12 +87,24 @@ const toPage = ({ rows, count }: taskRepository.TaskPage, { page, limit }: ListO
   meta: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
 });
 
-export const create = async (userId: number, data: CreateTaskInput): Promise<Task> =>
-  taskRepository.create({ ...pickWritable(data), userId });
+// Putting a task in a project requires the editor role (or owner) in that project.
+const assertCanAddToProject = async (projectId: number, userId: number): Promise<void> => {
+  await assertProjectAccess(projectId, userId, 'editor', 'Viewers cannot add tasks to this project');
+};
 
+export const create = async (userId: number, data: CreateTaskInput): Promise<Task> => {
+  const projectId = data.projectId ?? null;
+  if (projectId !== null) await assertCanAddToProject(projectId, userId);
+  return taskRepository.create({ ...pickWritable(data), userId, projectId });
+};
+
+// Owned tasks + tasks shared with the user + tasks of every project the user owns or is a member of.
 export const getAllByUser = async (userId: number, query?: ListTasksQuery): Promise<Page<Task>> => {
   const options = buildListOptions(query);
-  return toPage(await taskRepository.findAllIncludingCollaborated(userId, options), options);
+  // Filtering on a project the user is not in: 404, like GET /api/projects/:id.
+  if (options.filters.projectId) await assertProjectAccess(options.filters.projectId, userId, 'viewer');
+  const projectIds = await projectRepository.findAccessibleIds(userId);
+  return toPage(await taskRepository.findAllIncludingCollaborated(userId, options, projectIds), options);
 };
 
 export const getMyTasks = async (userId: number, query?: ListTasksQuery): Promise<Page<Task>> => {
@@ -98,8 +118,17 @@ export const getById = async (taskId: Id, userId: number): Promise<Task> => {
 };
 
 export const update = async (taskId: Id, userId: number, data: UpdateTaskInput): Promise<Task | null> => {
-  const { task } = await assertTaskAccess(taskId, userId, 'editor', 'Viewers cannot edit tasks');
-  return taskRepository.update(task.id, pickWritable(data));
+  const { task, role } = await assertTaskAccess(taskId, userId, 'editor', 'Viewers cannot edit tasks');
+  const changes: taskRepository.TaskChanges = pickWritable(data);
+
+  // Moving a task to another project (or out of its project) is reserved to the task owner,
+  // otherwise a project editor could take a task out of the project and keep it hidden.
+  if (data.projectId !== undefined && data.projectId !== task.projectId) {
+    if (role !== 'owner') throw new ApiError(403, 'Only the task owner can move a task to another project');
+    if (data.projectId !== null) await assertCanAddToProject(data.projectId, userId);
+    changes.projectId = data.projectId;
+  }
+  return taskRepository.update(task.id, changes);
 };
 
 export const remove = async (taskId: Id, userId: number): Promise<Task | null> => {

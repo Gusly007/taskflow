@@ -55,6 +55,10 @@ router.use(auth);
  *                 nullable: true
  *                 example: '2026-11-20'
  *                 description: Calendar day (YYYY-MM-DD)
+ *               projectId:
+ *                 type: integer
+ *                 nullable: true
+ *                 description: Project to put the task in (you need the editor role in it). Omit or null for a personal task.
  *     responses:
  *       201:
  *         description: Task created successfully
@@ -69,7 +73,7 @@ router.post('/', validateCreateTask, validate, taskController.create);
  * @swagger
  * /tasks:
  *   get:
- *     summary: Get all tasks (owned + collaborated), filtered, sorted and paginated
+ *     summary: Get all tasks you can see (owned, shared with you, and tasks of your projects), filtered, sorted and paginated
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
@@ -94,6 +98,10 @@ router.post('/', validateCreateTask, validate, taskController.create);
  *         name: dueBefore
  *         schema: { type: string, format: date }
  *         description: Due on or before this day (YYYY-MM-DD)
+ *       - in: query
+ *         name: projectId
+ *         schema: { type: integer }
+ *         description: Only tasks of this project
  *       - in: query
  *         name: sort
  *         schema: { type: string, default: '-createdAt', example: 'dueDate' }
@@ -143,6 +151,10 @@ router.get('/', validateListTasks, validate, taskController.getAll);
  *         name: dueBefore
  *         schema: { type: string, format: date }
  *         description: Due on or before this day (YYYY-MM-DD)
+ *       - in: query
+ *         name: projectId
+ *         schema: { type: integer }
+ *         description: Only tasks of this project
  *       - in: query
  *         name: sort
  *         schema: { type: string, default: '-createdAt', example: 'dueDate' }
@@ -230,6 +242,10 @@ router.get('/:id', validateTaskId, validate, taskController.getById);
  *                 nullable: true
  *                 example: '2026-11-20'
  *                 description: Calendar day (YYYY-MM-DD). Send null to remove the due date.
+ *               projectId:
+ *                 type: integer
+ *                 nullable: true
+ *                 description: Move the task to this project, or null to take it out of its project. Task owner only, and you need the editor role in the target project.
  *             description: Any other field (userId, id...) is ignored.
  *     responses:
  *       200:
@@ -239,9 +255,9 @@ router.get('/:id', validateTaskId, validate, taskController.getById);
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Access denied (user can see the task but lacks the required role)
+ *         description: Access denied (viewer, or a non-owner trying to change projectId)
  *       404:
- *         description: Task not found, or the user has no access to it
+ *         description: Task or project not found, or the user has no access to it
  */
 router.put('/:id', validateTaskId, validateUpdateTask, validate, taskController.update);
 

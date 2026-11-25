@@ -1,18 +1,24 @@
 import * as taskService from '../../src/services/taskService';
 import * as taskRepositoryModule from '../../src/repositories/taskRepository';
 import * as collaboratorRepositoryModule from '../../src/repositories/collaboratorRepository';
-import { fakeTask } from '../fakes';
+import * as projectRepositoryModule from '../../src/repositories/projectRepository';
+import { fakeProject, fakeTask } from '../fakes';
 
 // Hoisted above the imports by ts-jest, so the services get the mocks.
 jest.mock('../../src/repositories/taskRepository');
 jest.mock('../../src/repositories/collaboratorRepository');
+jest.mock('../../src/repositories/projectRepository');
 
 // jest.mock() replaced every export with a jest.fn(); jest.mocked() gives them their mock types.
 const taskRepository = jest.mocked(taskRepositoryModule);
 const collaboratorRepository = jest.mocked(collaboratorRepositoryModule);
+const projectRepository = jest.mocked(projectRepositoryModule);
 
 describe('taskService', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    projectRepository.findAccessibleIds.mockResolvedValue([]);
+  });
 
   // ==================== CREATE ====================
 
@@ -23,7 +29,7 @@ describe('taskService', () => {
 
       const result = await taskService.create(5, { title: 'Task' });
 
-      expect(taskRepository.create).toHaveBeenCalledWith({ title: 'Task', userId: 5 });
+      expect(taskRepository.create).toHaveBeenCalledWith({ title: 'Task', userId: 5, projectId: null });
       expect(result).toEqual(mockTask);
     });
 
@@ -36,8 +42,33 @@ describe('taskService', () => {
       } as taskService.CreateTaskInput);
 
       expect(taskRepository.create).toHaveBeenCalledWith({
-        title: 'Task', priority: 'high', dueDate: '2026-11-20', userId: 5,
+        title: 'Task', priority: 'high', dueDate: '2026-11-20', userId: 5, projectId: null,
       });
+    });
+
+    it('creates a task in a project where the user is an editor', async () => {
+      projectRepository.findById.mockResolvedValue(fakeProject({ id: 3, ownerId: 9 }));
+      projectRepository.getMemberRole.mockResolvedValue('editor');
+      taskRepository.create.mockResolvedValue(fakeTask({}));
+
+      await taskService.create(5, { title: 'Task', projectId: 3 });
+
+      expect(taskRepository.create).toHaveBeenCalledWith({ title: 'Task', userId: 5, projectId: 3 });
+    });
+
+    it('refuses a project where the user is only a viewer (403)', async () => {
+      projectRepository.findById.mockResolvedValue(fakeProject({ id: 3, ownerId: 9 }));
+      projectRepository.getMemberRole.mockResolvedValue('viewer');
+
+      await expect(taskService.create(5, { title: 'Task', projectId: 3 })).rejects.toMatchObject({ statusCode: 403 });
+      expect(taskRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses a project the user is not in (404)', async () => {
+      projectRepository.findById.mockResolvedValue(fakeProject({ id: 3, ownerId: 9 }));
+      projectRepository.getMemberRole.mockResolvedValue(null);
+
+      await expect(taskService.create(5, { title: 'Task', projectId: 3 })).rejects.toMatchObject({ statusCode: 404 });
     });
   });
 
@@ -46,11 +77,16 @@ describe('taskService', () => {
   describe('getAllByUser', () => {
     it('returns owned and collaborated tasks with pagination meta', async () => {
       const mockTasks = [fakeTask({ id: 1 }), fakeTask({ id: 2 })];
+      projectRepository.findAccessibleIds.mockResolvedValue([3, 4]);
       taskRepository.findAllIncludingCollaborated.mockResolvedValue({ rows: mockTasks, count: 45 });
 
       const result = await taskService.getAllByUser(5, { page: 2, limit: 20 });
 
-      expect(taskRepository.findAllIncludingCollaborated).toHaveBeenCalledWith(5, expect.objectContaining({ limit: 20, offset: 20 }));
+      expect(taskRepository.findAllIncludingCollaborated).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ limit: 20, offset: 20 }),
+        [3, 4],
+      );
       expect(result).toEqual({ items: mockTasks, meta: { page: 2, limit: 20, total: 45, totalPages: 3 } });
     });
   });

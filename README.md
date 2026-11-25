@@ -1,6 +1,6 @@
 # TaskFlow API
 
-REST API for collaborative task management. Users can create tasks, invite collaborators with granular roles (viewer/editor), and manage their work in isolation from other users.
+REST API for collaborative task management. Users can create tasks, group them in projects shared with members, invite collaborators on single tasks with granular roles (viewer/editor), and manage their work in isolation from other users.
 
 Built as the backend foundation for a future multi-tenant SaaS platform where organizations and teams will manage projects with full data isolation.
 
@@ -148,11 +148,11 @@ Health check: `http://localhost:3000/health`
 
 | Method | Route | Access | Description |
 |---|---|---|---|
-| GET | `/api/tasks` | auth | All tasks (owned + collaborated). Query: `status`, `priority` (comma-separated), `overdue`, `dueAfter`, `dueBefore`, `sort` (`dueDate`, `-priority`...), `page`, `limit`. Pagination in `meta` |
+| GET | `/api/tasks` | auth | All tasks the caller can see: owned, shared as collaborator, and tasks of the caller's projects. Query: `status`, `priority` (comma-separated), `overdue`, `dueAfter`, `dueBefore`, `projectId`, `sort` (`dueDate`, `-priority`...), `page`, `limit`. Pagination in `meta` |
 | GET | `/api/tasks/mine` | auth | Only tasks owned by the caller (same query params) |
-| POST | `/api/tasks` | auth | Create a task (`title`, optional `description`, `status`, `priority` low/medium/high, `dueDate` YYYY-MM-DD) |
-| GET | `/api/tasks/:id` | owner or collaborator | Get task details |
-| PUT | `/api/tasks/:id` | owner or editor | Update a task (`dueDate: null` clears it; `userId`/`id` are ignored) |
+| POST | `/api/tasks` | auth | Create a task (`title`, optional `description`, `status`, `priority` low/medium/high, `dueDate` YYYY-MM-DD, `projectId` (needs the editor role in that project)) |
+| GET | `/api/tasks/:id` | owner, collaborator or project member | Get task details |
+| PUT | `/api/tasks/:id` | owner or editor | Update a task (`dueDate: null` clears it; `userId`/`id` are ignored; changing `projectId` is reserved to the task owner) |
 | DELETE | `/api/tasks/:id` | owner only | Delete a task |
 
 ### Collaborators — `/api/tasks/:id/collaborators` *(requires Bearer token)*
@@ -168,6 +168,26 @@ Health check: `http://localhost:3000/health`
 - `viewer` — read-only access to the task
 - `editor` — can read and update the task
 
+### Projects — `/api/projects` *(requires Bearer token)*
+
+| Method | Route | Access | Description |
+|---|---|---|---|
+| POST | `/api/projects` | auth | Create a project (`name`, optional `description`); the caller becomes its owner |
+| GET | `/api/projects` | auth | Projects the caller owns or is a member of, each with the caller's `role` |
+| GET | `/api/projects/:id` | any member | Project details + caller's `role` |
+| PUT | `/api/projects/:id` | owner only | Rename / describe |
+| DELETE | `/api/projects/:id` | owner only | Delete the project; its tasks are kept as personal tasks (`projectId` set to null) |
+| GET | `/api/projects/:id/members` | any member | List members |
+| POST | `/api/projects/:id/members` | owner only | Add a member (`userId`, `role` viewer/editor, default viewer) |
+| PATCH | `/api/projects/:id/members/:userId` | owner only | Change a member's role |
+| DELETE | `/api/projects/:id/members/:userId` | owner, or the member themself | Remove a member / leave the project |
+
+**Access to project tasks**: a user's role on a task is the highest of the task owner role, their collaborator role on the task, and the role given by the task's project:
+- project owner or `editor`: `editor` on every task of the project (and can create tasks in it)
+- project `viewer`: `viewer` on every task of the project
+
+Deleting a task, managing its collaborators and moving it to another project stay reserved to the task owner.
+
 ---
 
 ## Data Model
@@ -178,7 +198,9 @@ users
 
 tasks
   id, title, description, status (todo|in-progress|done)
+  priority (low|medium|high), dueDate
   userId (FK → users.id)
+  projectId (FK → projects.id, nullable, ON DELETE SET NULL)
   createdAt, updatedAt
 
 task_collaborators
@@ -186,6 +208,16 @@ task_collaborators
   role (viewer|editor)
   createdAt, updatedAt
   UNIQUE (taskId, userId)
+
+projects
+  id, name, description, ownerId (FK → users.id)
+  createdAt, updatedAt
+
+project_members
+  id, projectId (FK → projects.id), userId (FK → users.id)
+  role (viewer|editor)
+  createdAt, updatedAt
+  UNIQUE (projectId, userId)
 ```
 
 ---
@@ -195,7 +227,7 @@ task_collaborators
 - JWT Bearer tokens — stateless authentication
 - Bcrypt password hashing
 - Rate limiting on login (failed attempts only) and register — 429 after 10 attempts per IP per 15 min
-- Centralized access control (`src/policies/taskPolicy.ts`) and a whitelist of writable task fields
+- Centralized access control (`src/policies/taskPolicy.ts`, `src/policies/projectPolicy.ts`) and a whitelist of writable task fields
 - Helmet — 15 security headers (removes `X-Powered-By`, adds CSP, HSTS, etc.)
 - Input validation on all write endpoints via express-validator
 - Centralized error handling — consistent error format; stack traces only in development, generic message for 500 errors in production
@@ -215,10 +247,10 @@ Tests are written in TypeScript and type-checked by ts-jest: a type error fails 
 ```
 tests/
 ├── unit/           # in isolation (taskPolicy, taskService, collaboratorService, errorMiddleware)
-└── integration/    # HTTP endpoints via Supertest (auth, tasks, task list filters, collaborators, rate limiting) + migrations
+└── integration/    # HTTP endpoints via Supertest (auth, tasks, task list filters, collaborators, projects, rate limiting) + migrations
 ```
 
-166 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
+216 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
 
 ---
 
@@ -227,7 +259,7 @@ tests/
 The current version covers per-user task management with collaboration. Planned next:
 
 - [ ] **Organizations / Teams** — multi-tenant isolation with `organizations` and `memberships` tables
-- [ ] **Projects** — group tasks under projects within an organization
+- [x] **Projects** — group tasks under projects shared with members (viewer/editor)
 - [ ] **Role-based access at org level** — admin, member, guest
 - [ ] **Activity log** — audit trail per task
 - [ ] **Notifications** — notify collaborators on task updates

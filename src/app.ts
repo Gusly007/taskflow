@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import authRoutes from './routes/authRoutes';
 import taskRoutes from './routes/taskRoutes';
+import projectRoutes from './routes/projectRoutes';
 import errorMiddleware from './middlewares/errorMiddleware';
 import setupSwagger from './docs/swagger';
 import { TRUST_PROXY } from './config/env';
@@ -23,6 +24,7 @@ app.get('/health', (_req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/projects', projectRoutes);
 
 app.use(errorMiddleware);
 

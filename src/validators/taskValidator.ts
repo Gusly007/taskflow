@@ -14,12 +14,22 @@ const dueDateRule = () =>
     .isDate({ format: 'YYYY-MM-DD', strictMode: true })
     .withMessage('dueDate must be a valid date in YYYY-MM-DD format');
 
+// projectId: id of a project the user can add tasks to. null = personal task (on update:
+// takes the task out of its project).
+const projectIdRule = () =>
+  body('projectId')
+    .optional({ values: 'null' })
+    .isInt({ min: 1 })
+    .withMessage('projectId must be a positive integer or null')
+    .toInt();
+
 export const validateCreateTask = [
   body('title').trim().notEmpty().withMessage('Title is required'),
   body('description').optional().trim(),
   statusRule(),
   priorityRule(),
   dueDateRule(),
+  projectIdRule(),
 ];
 
 export const validateUpdateTask = [
@@ -28,6 +38,7 @@ export const validateUpdateTask = [
   statusRule(),
   priorityRule(),
   dueDateRule(),
+  projectIdRule(),
 ];
 
 // ---------- GET /api/tasks and /api/tasks/mine (query string) ----------
@@ -62,6 +73,7 @@ export const validateListTasks = [
   query('overdue').optional().isBoolean().withMessage('overdue must be true or false').toBoolean(),
   dateQuery('dueAfter'),
   dateQuery('dueBefore'),
+  query('projectId').optional().isInt({ min: 1 }).withMessage('projectId must be a positive integer').toInt(),
   query('sort')
     .optional()
     .isIn(SORT_VALUES)
