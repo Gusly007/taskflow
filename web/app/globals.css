@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* Design tokens, used as Tailwind classes: bg-surface, text-muted-foreground, border-border, bg-accent...
+   Light = direction A (white, sober), dark = direction C (dense, amber accent). */
+:root {
+  --background: #ffffff;
+  --foreground: #18181b;
+  --surface: #fafafa; /* sidebar, table headers */
+  --muted: #f4f4f5; /* hover, selected nav item */
+  --muted-foreground: #52525b;
+  --border: #e4e4e7;
+  --accent: #f5a524;
+  --accent-foreground: #111111;
+  --danger: #b91c1c;
+}
+
+/* Dark palette, applied in two cases:
+   - the user picked "dark" (data-theme="dark" on <html>, set by app/layout.tsx from the theme cookie);
+   - the user kept "system" (no data-theme) and the OS is in dark mode. */
+:root[data-theme="dark"] {
+  --background: #0e0f11;
+  --foreground: #e7e7ea;
+  --surface: #131417;
+  --muted: #1e2025;
+  --muted-foreground: #9b9ca3;
+  --border: #2a2c32;
+  --danger: #f87171;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --background: #0e0f11;
+    --foreground: #e7e7ea;
+    --surface: #131417;
+    --muted: #1e2025;
+    --muted-foreground: #9b9ca3;
+    --border: #2a2c32;
+    --danger: #f87171;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Native controls (scrollbars, date pickers) follow the theme too. */
+:root { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) { color-scheme: dark; }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
