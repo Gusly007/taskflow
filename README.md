@@ -10,7 +10,8 @@ Built as the backend foundation for a future multi-tenant SaaS platform where or
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js + Express 5 |
+| Language | TypeScript 6 (strict) |
+| Runtime | Node.js 20 + Express 5 |
 | ORM | Sequelize 6 |
 | Database (prod) | PostgreSQL |
 | Database (test) | SQLite |
@@ -19,7 +20,7 @@ Built as the backend foundation for a future multi-tenant SaaS platform where or
 | Validation | express-validator |
 | Security headers | Helmet |
 | API docs | Swagger UI (`/api-docs`) |
-| Tests | Jest + Supertest |
+| Tests | Jest + ts-jest + Supertest |
 | Containers | Docker + Docker Compose (PostgreSQL 16) |
 | CI | GitHub Actions |
 
@@ -40,8 +41,11 @@ src/
 ├── validators/     # express-validator rule chains
 ├── routes/         # Express routers
 ├── utils/          # ApiError, ApiResponse, jwt, hash helpers
+├── types/          # Global type declarations (req.user on Express Request)
 └── docs/           # Swagger setup
 ```
+
+The whole backend (source and tests) is written in strict TypeScript. In development `tsx` runs the `.ts` files directly; for production `npm run build` compiles `src/` to `dist/`, and the Docker image only ships the compiled JavaScript.
 
 Pattern: **Controller → Service → Repository**. Services can call multiple repositories; services never call other services.
 
@@ -54,14 +58,16 @@ Detailed living backend notes (French): [docs/BACKEND.md](docs/BACKEND.md).
 ## Getting Started
 
 ### Prerequisites
-- Node.js >= 18
+- Node.js >= 20
 - PostgreSQL running locally
 
 ### Install
 
 ```bash
-npm install
+npm ci
 ```
+
+Use `npm ci` (installs exactly what `package-lock.json` says). On Windows, `npm install` can drop optional dependencies of other platforms from the lock file, which then breaks `npm ci` in CI and Docker.
 
 ### Configure environment
 
@@ -97,10 +103,14 @@ TRUST_PROXY=0                      # set to 1 behind a reverse proxy (Render, Fl
 # Apply database migrations (also done automatically on startup)
 npm run migrate
 
-# Development (auto-restart on file change)
+# Development (runs the TypeScript directly, auto-restart on file change)
 npm run dev
 
-# Production
+# Type check without building
+npm run typecheck
+
+# Production: compile to dist/, then run the compiled JavaScript
+npm run build
 npm start
 ```
 
@@ -185,7 +195,7 @@ task_collaborators
 - JWT Bearer tokens — stateless authentication
 - Bcrypt password hashing
 - Rate limiting on login (failed attempts only) and register — 429 after 10 attempts per IP per 15 min
-- Centralized access control (`src/policies/taskPolicy.js`) and a whitelist of writable task fields
+- Centralized access control (`src/policies/taskPolicy.ts`) and a whitelist of writable task fields
 - Helmet — 15 security headers (removes `X-Powered-By`, adds CSP, HSTS, etc.)
 - Input validation on all write endpoints via express-validator
 - Centralized error handling — consistent error format; stack traces only in development, generic message for 500 errors in production
@@ -200,7 +210,7 @@ npm test               # run all tests
 npm run test:coverage  # with coverage report
 ```
 
-Tests run against an in-memory SQLite database (isolated from production), built with the real migrations. CI also runs every migration up, down and up again on PostgreSQL 16, and checks that the Docker image builds.
+Tests are written in TypeScript and type-checked by ts-jest: a type error fails the run. They use an in-memory SQLite database (isolated from production), built with the real migrations. CI also runs every migration up, down and up again on PostgreSQL 16, and checks that the Docker image builds.
 
 ```
 tests/

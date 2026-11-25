@@ -1,0 +1,11 @@
+{
+  // Production build: compiles src/ to dist/ (npm run build). Tests are not shipped.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "rootDir": "src",
+    "outDir": "dist",
+    "noEmit": false
+  },
+  "include": ["src"]
+}

@@ -1,26 +1,29 @@
 # Backend TaskFlow — Récap
 
 > Doc vivante : à mettre à jour à chaque nouvelle route, couche, modèle ou correction.
-> Dernière mise à jour : **2026-11-10**
+> Dernière mise à jour : **2026-11-25**
 
 ---
 
 ## 1. En bref
 
 API REST de gestion de tâches collaboratives.
-**Stack :** Node 20 · Express 5 · Sequelize · PostgreSQL (SQLite en test) · JWT · bcrypt · express-validator · Helmet · Swagger · Jest/Supertest · Docker · GitHub Actions.
+**Stack :** Node 20 · **TypeScript 6 (strict)** · Express 5 · Sequelize · PostgreSQL (SQLite en test) · JWT · bcrypt · express-validator · Helmet · Swagger · Jest/Supertest · Docker · GitHub Actions.
 
 ---
 
 ## 2. Lancer le projet
 
 ```bash
-npm install
+npm ci                    # installe exactement le lock (pas npm install, voir §7)
 cp .env.example .env      # remplir DB_PASSWORD et JWT_SECRET (obligatoires)
 npm run migrate           # applique les migrations en attente (aussi fait auto au démarrage)
-npm run dev               # dev avec rechargement auto
-npm test                  # tests (SQLite en mémoire)
+npm run dev               # dev avec rechargement auto (tsx exécute le TypeScript directement)
+npm run typecheck         # vérifie les types de src/ et tests/ (tsc, rien n'est généré)
+npm test                  # tests (SQLite en mémoire, ts-jest vérifie aussi les types)
 npm run test:coverage     # tests + couverture
+npm run build             # compile src/ en JavaScript dans dist/
+npm start                 # lance la version compilée (dist/server.js)
 docker compose up -d      # API + PostgreSQL 16 en conteneurs
 ```
 
@@ -28,9 +31,18 @@ docker compose up -d      # API + PostgreSQL 16 en conteneurs
 - Swagger : `http://localhost:3000/api-docs`
 - Health check : `http://localhost:3000/health`
 
+### TypeScript
+
+- Tout le code (`src/`) et les tests (`tests/`) sont en TypeScript **strict**.
+- `tsconfig.json` : config de l'éditeur, de ts-jest et de `npm run typecheck` (src + tests, n'émet rien).
+- `tsconfig.build.json` : build de prod, `src/` → `dist/` (les tests ne sont pas compilés).
+- En dev, `tsx` exécute les `.ts` sans étape de build. En prod, Node exécute le JavaScript compilé de `dist/`.
+- `src/types/express.d.ts` ajoute `req.user` au type `Request` d'Express. Dans un controller, utiliser `currentUserId(req)` (`authMiddleware`) qui renvoie un `number` ou lance un 401.
+- Les modèles Sequelize sont des classes typées (`InferAttributes` / `CreationOptional`). Les valeurs autorisées (`TASK_STATUSES`, `TASK_PRIORITIES`, `COLLABORATOR_ROLES`…) sont définies une seule fois dans les modèles, et les validators les réutilisent.
+
 ### Migrations (schéma de la BDD)
 
-Le schéma n'est **plus** créé par `sequelize.sync()` : il est versionné dans `src/db/migrations/` (Umzug, format compatible sequelize-cli, suivi dans la table `SequelizeMeta`). `src/server.js` applique les migrations en attente au démarrage, donc `docker compose up` met la base à jour tout seul.
+Le schéma n'est **plus** créé par `sequelize.sync()` : il est versionné dans `src/db/migrations/` (Umzug, format compatible sequelize-cli, suivi dans la table `SequelizeMeta`). `src/server.ts` applique les migrations en attente au démarrage, donc `docker compose up` met la base à jour tout seul.
 
 ```bash
 npm run migrate:status    # migrations appliquées / en attente
@@ -39,7 +51,9 @@ npm run migrate:undo      # annuler la dernière
 npm run migrate:undo:all  # tout annuler (vide la base !)
 ```
 
-- **Changer le schéma** = créer un nouveau fichier `src/db/migrations/AAAAMMJJ-NN-description.js` avec `up` et `down`, puis mettre le modèle à jour. Ne jamais modifier une migration déjà appliquée.
+- **Changer le schéma** = créer un nouveau fichier `src/db/migrations/AAAAMMJJ-NN-description.ts` qui exporte `up` et `down`, puis mettre le modèle à jour. Ne jamais modifier une migration déjà appliquée. Une migration utilise `DataTypes` directement et n'importe jamais les modèles (elle doit rester figée).
+- Les migrations sont enregistrées sous le nom `xxx.js` dans `SequelizeMeta`, même quand `tsx` exécute le `.ts` en dev. C'est ce que contiennent les bases créées avant TypeScript, et ce que `dist/` exécute.
+- Dans l'image Docker (pas de `tsx`) : `node dist/db/migrator.js status` (ou `up`, `down`, `down:all`).
 - `20261110-01-initial-schema` : schéma de base. Sur une base créée avant les migrations (ton volume Docker), elle ne fait rien et se marque comme appliquée.
 
 ---
@@ -59,10 +73,11 @@ Requête → Route → Middlewares → Controller → Service → Repository →
 | Services | `src/services/` | Logique métier, lance des `ApiError` | Peut appeler plusieurs repositories et les policies, jamais un autre service |
 | Policies | `src/policies/` | **Contrôle d'accès centralisé** : `taskPolicy.assertTaskAccess(taskId, userId, rôle requis)` | Toute opération sur une tâche existante passe par là |
 | Repositories | `src/repositories/` | Requêtes Sequelize | Seule couche qui touche à la BDD |
-| Models | `src/models/` | Tables + relations (`models/index.js`) | — |
+| Models | `src/models/` | Classes typées + relations (`models/index.ts`) + valeurs autorisées (statuts, priorités, rôles) | — |
 | Utils | `src/utils/` | `ApiError`, `ApiResponse`, `jwt`, `hash` | — |
 | Config | `src/config/` | Connexion BDD, variables d'env | — |
-| Migrations | `src/db/` | `migrator.js` (Umzug + CLI) et `migrations/` versionnées | Seule façon de modifier le schéma |
+| Migrations | `src/db/` | `migrator.ts` (Umzug + CLI) et `migrations/` versionnées | Seule façon de modifier le schéma |
+| Types | `src/types/` | Déclarations globales (`req.user` sur `Request`) | — |
 
 ---
 
@@ -77,7 +92,7 @@ task_collaborators  id, taskId → tasks, userId → users, role (viewer | edito
 
 - Un `User` possède plusieurs `Task` (suppression en cascade).
 - Champs modifiables par le client : `title`, `description`, `status`, `priority`, `dueDate` (liste blanche `WRITABLE_FIELDS` dans `taskService`). Tout autre champ envoyé (`userId`, `id`…) est ignoré.
-- `TaskCollaborator` relie `Task` ↔ `User` avec un rôle. Les FK et le `UNIQUE` sont ajoutés automatiquement par `belongsToMany` dans `models/index.js` (cascade à la suppression d'une tâche ou d'un user).
+- `TaskCollaborator` relie `Task` ↔ `User` avec un rôle. Les FK et le `UNIQUE` sont ajoutés automatiquement par `belongsToMany` dans `models/index.ts` (cascade à la suppression d'une tâche ou d'un user).
 
 ---
 
@@ -114,7 +129,7 @@ task_collaborators  id, taskId → tasks, userId → users, role (viewer | edito
 
 **Rôles :** `viewer` = lecture seule · `editor` = lecture + modification. Seul le propriétaire peut supprimer la tâche ou gérer les collaborateurs.
 
-**Contrôle d'accès (`src/policies/taskPolicy.js`) :** hiérarchie `owner` > `editor` > `viewer`.
+**Contrôle d'accès (`src/policies/taskPolicy.ts`) :** hiérarchie `owner` > `editor` > `viewer`.
 - Tâche inexistante **ou** aucun droit dessus → **404** `Task not found` (un inconnu ne peut pas savoir si un id existe).
 - Accès à la tâche mais rôle insuffisant (ex. `viewer` qui modifie) → **403**.
 - Id non numérique dans l'URL → **400**.
@@ -137,7 +152,7 @@ task_collaborators  id, taskId → tasks, userId → users, role (viewer | edito
 - « En retard » est calculé avec la date du jour en **UTC**.
 - Paramètre invalide (statut inconnu, `limit=500`, date mal formée…) → 400.
 
-### Rate limiting (`src/middlewares/rateLimitMiddleware.js`)
+### Rate limiting (`src/middlewares/rateLimitMiddleware.ts`)
 
 - `POST /api/auth/login` : **10 échecs** max par IP et par 15 min (les connexions réussies ne comptent pas), puis 429 pour toutes les tentatives de cette IP jusqu'à la fin de la fenêtre.
 - `POST /api/auth/register` : 10 inscriptions max par IP et par 15 min.
@@ -174,7 +189,7 @@ Pour renvoyer une erreur depuis un service : `throw new ApiError(403, 'message')
 
 ```
 tests/
-├── setup.js, helpers.js
+├── setup.ts, helpers.ts, fakes.ts (faux modèles typés pour les tests unitaires)
 ├── unit/          taskPolicy (18), taskService (22), collaboratorService (17), errorMiddleware (5)
 └── integration/   auth (9), task (37), taskList (22), collaborator (30), migrations (3), rateLimit (3)
 ```
@@ -182,9 +197,11 @@ tests/
 **166 tests.** Les tests construisent la base SQLite avec les **vraies migrations** (pas `sync`).
 
 La CI (`.github/workflows/ci.yml`) tourne à chaque push et PR, avec 3 jobs :
-- **Run tests** : `npm ci` + `npm test`.
+- **Run tests** : `npm ci` + `npm test` (ts-jest vérifie les types : une erreur de type fait échouer les tests).
 - **Migrations on PostgreSQL** : sur un vrai PostgreSQL 16, `migrate` → `migrate:undo:all` → `migrate`.
-- **Docker build** : vérifie que l'image de prod se construit (lock file, Dockerfile).
+- **Docker build** : vérifie que l'image de prod se construit (lock file, Dockerfile, compilation `tsc`).
+
+Le Dockerfile a 3 étapes : `build` (compile le TypeScript), `deps` (dépendances de prod seulement), puis l'image finale qui ne contient que `dist/` et les dépendances de prod (ni sources TypeScript, ni compilateur, ni tests).
 
 ⚠️ Sous Windows, `npm install` peut retirer du `package-lock.json` des dépendances optionnelles d'autres OS, et `npm ci` échoue ensuite en CI et dans Docker. Pour installer un projet existant, utiliser `npm ci`.
 
@@ -212,6 +229,7 @@ La CI (`.github/workflows/ci.yml`) tourne à chaque push et PR, avec 3 jobs :
 | 2026-11-10 | `register` / `login` au format `ApiResponse` · `statusCode` du corps aligné sur le code HTTP (201) · stack en dev uniquement, 500 génériques hors dev · `DELETE` 204 sans corps · 116 → 121 tests |
 | 2026-11-10 | **Faille corrigée** : un `editor` pouvait devenir propriétaire via `PUT { userId }` (liste blanche des champs) · migrations Umzug à la place de `sync` · `priority` + `dueDate` sur les tâches · CI : migrations sur PostgreSQL + docker build · 121 → 137 tests |
 | 2026-11-10 | Filtres (`status`, `priority`, `overdue`, `dueAfter`/`dueBefore`), tri et pagination (`meta`) sur `GET /tasks` et `/tasks/mine` · rate limiting login/register (429) · `TRUST_PROXY` · 137 → 166 tests |
+| 2026-11-25 | **Migration complète vers TypeScript strict** (src + tests) · modèles Sequelize typés · build `dist/` + Dockerfile multi-étapes · `tsx` en dev · `collaboratorRepositorie` renommé `collaboratorRepository` · code mort supprimé (`ownerTask`, `getTasksForCollaborator`…) · 166 tests |
 
 ---
 
