@@ -33,7 +33,7 @@ app/                      routing only: short pages that read the URL, call a se
   session-expired/        Route Handler: drops the cookie when the API answers 401
 features/                 everything about one domain lives together
   auth/                   auth.service.ts, auth.actions.ts, auth.schemas.ts, auth.types.ts, components/
-  tasks/                  task.service.ts, task.actions.ts, task.types.ts, task.schemas.ts, task-labels.ts (status / priority labels), search-params.ts (URL -> typed params), task-views.ts (titles), task-detail.ts, task-dates.ts, components/
+  tasks/                  task.service.ts, task.actions.ts, task.types.ts, task.schemas.ts, task-labels.ts (status / priority labels), search-params.ts (URL -> typed params: views, filters, sort, page), task-views.ts (titles), task-list-page.ts / task-detail.ts (page loaders), task-dates.ts, components/
   projects/               project.service.ts (GET /projects for now), project.types.ts
   collaborators/          collaborator.types.ts (service to come)
   theme/                  light / dark / system switcher
@@ -54,7 +54,8 @@ proxy.ts                  optimistic redirect when there is no session cookie
    then `revalidatePath` / `redirect`. They return a `FormState` for `useActionState`.
 4. **Pages** read `searchParams`, call a service, and compose components. No logic.
 5. **Server Components by default**; `'use client'` only on the small leaves that need interactivity.
-6. **The URL is the state**: view, filters, sort and page live in the query string.
+6. **The URL is the state**: view, filters, sort and page live in the query string. The API filters, sorts and
+   paginates; components like `TaskFilters` only change the URL (filtering in the browser would only see one page).
 7. **No business rules on the front**: who may edit or delete is decided by the API.
 8. Imports: relative inside a feature (`./task.types`), `@/...` across folders.
    Files in kebab-case, roles as suffixes (`task.service.ts`, `auth.actions.ts`), named exports.

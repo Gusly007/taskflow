@@ -2,14 +2,25 @@ import { cn } from '@/lib/cn';
 import { PRIORITY_LABELS } from '../task-labels';
 import { TASK_PRIORITIES, type TaskPriority } from '../task.types';
 
+interface TaskPriorityIconProps {
+  priority: TaskPriority;
+  // false when the priority's name is already written next to the icon (e.g. in the filter list),
+  // so screen readers don't read it twice.
+  labelled?: boolean;
+  className?: string;
+}
+
 // Signal bars: 1 bar = low, 2 = medium, 3 = high (high also in the danger color).
 // The bar count carries the meaning, not only the color; the label is read by screen readers
 // and shown as a tooltip.
-export function TaskPriorityIcon({ priority, className }: { priority: TaskPriority; className?: string }) {
+export function TaskPriorityIcon({ priority, labelled = true, className }: TaskPriorityIconProps) {
   const level = TASK_PRIORITIES.indexOf(priority) + 1;
   const label = `Priority: ${PRIORITY_LABELS[priority]}`;
   return (
-    <span title={label} className={cn('flex shrink-0', priority === 'high' ? 'text-danger' : 'text-muted-foreground', className)}>
+    <span
+      title={labelled ? label : undefined}
+      className={cn('flex shrink-0', priority === 'high' ? 'text-danger' : 'text-muted-foreground', className)}
+    >
       <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
         {[0, 1, 2].map((bar) => (
           <rect
@@ -24,7 +35,7 @@ export function TaskPriorityIcon({ priority, className }: { priority: TaskPriori
           />
         ))}
       </svg>
-      <span className="sr-only">{label}</span>
+      {labelled && <span className="sr-only">{label}</span>}
     </span>
   );
 }
