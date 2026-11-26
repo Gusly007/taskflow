@@ -2,12 +2,18 @@
 // No React or Next here (no FormData, redirect, revalidatePath): Server Actions do that.
 import 'server-only';
 import { apiFetch, type Page } from '@/lib/api-client';
-import type { ListTasksQuery, Task, TaskScope, UpdateTaskInput } from './task.types';
+import type { CreateTaskInput, ListTasksQuery, Task, TaskScope, UpdateTaskInput } from './task.types';
 
 export async function listTasks(scope: TaskScope, query: ListTasksQuery = {}): Promise<Page<Task>> {
   const { data, meta } = await apiFetch<Task[]>(scope === 'mine' ? '/tasks/mine' : '/tasks', { query: { ...query } });
   if (!meta) throw new Error('GET /tasks answered without pagination meta');
   return { items: data, meta };
+}
+
+// POST /tasks: I become the owner. 403 / 404 if projectId is a project I can't add tasks to.
+export async function createTask(input: CreateTaskInput): Promise<Task> {
+  const { data } = await apiFetch<Task>('/tasks', { method: 'POST', body: input });
+  return data;
 }
 
 // PUT /tasks/:id is a partial update: { status: 'done' } changes the status and nothing else.
@@ -19,5 +25,4 @@ export async function updateTask(id: number, input: UpdateTaskInput): Promise<Ta
 
 // TODO (yours), one function per route, same pattern as listTasks:
 // - getTask(id)              GET    /tasks/:id
-// - createTask(input)        POST   /tasks
 // - deleteTask(id)           DELETE /tasks/:id   (204: no data)

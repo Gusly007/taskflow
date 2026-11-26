@@ -1,0 +1,51 @@
+'use client';
+
+// "Task created", shown once on the list after the form redirects to it with ?created=12.
+// The param is removed from the URL right away with history.replaceState (no reload, no new
+// history entry, Next's router stays in sync), so a refresh or a copied link doesn't show it again.
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+
+interface CreatedNoticeProps {
+  // false when the new task doesn't match the current view (e.g. created from "Overdue" with a
+  // future due date): say so, otherwise the user would think it was lost.
+  visibleInView: boolean;
+}
+
+export function CreatedNotice({ visibleInView }: CreatedNoticeProps) {
+  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('created');
+    window.history.replaceState(null, '', `${url.pathname}${url.search}`);
+  }, []);
+
+  if (!open) return null;
+
+  return (
+    <div role="status" className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted px-3 py-2 text-sm">
+      <p>
+        Task created.
+        {!visibleInView && (
+          <>
+            {' '}It isn&apos;t shown in this view.{' '}
+            <Link href="/tasks" className="font-medium underline underline-offset-2">
+              See all tasks
+            </Link>
+          </>
+        )}
+      </p>
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={() => setOpen(false)}
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+}

@@ -55,6 +55,15 @@ describe('Task API', () => {
       expect(res.body.message).toContain('backlog, todo, in-progress, in-review, done');
     });
 
+    it('accepts a 255-character title and returns 400 above (the column is a VARCHAR(255))', async () => {
+      const ok = await request(app).post('/api/tasks').set(auth()).send({ title: 'a'.repeat(255) });
+      const tooLong = await request(app).post('/api/tasks').set(auth()).send({ title: 'a'.repeat(256) });
+
+      expect(ok.status).toBe(201);
+      expect(tooLong.status).toBe(400);
+      expect(tooLong.body.message).toContain('at most 255 characters');
+    });
+
     it.each(['backlog', 'todo', 'in-progress', 'in-review', 'done'])('accepts the "%s" status', async (status) => {
       const res = await request(app).post('/api/tasks').set(auth()).send({ title: 'Task', status });
 
@@ -255,6 +264,14 @@ describe('Task API', () => {
       expect(res.status).toBe(200);
       expect(res.body.data.title).toBe('Updated Title');
       expect(res.body.data.status).toBe('done');
+    });
+
+    it('returns 400 when the new title is longer than 255 characters', async () => {
+      const task = await createTask(token);
+
+      const res = await request(app).put(`/api/tasks/${task.id}`).set(auth()).send({ title: 'a'.repeat(256) });
+
+      expect(res.status).toBe(400);
     });
 
     it('changes only the status when only the status is sent', async () => {

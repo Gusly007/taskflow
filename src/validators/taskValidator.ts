@@ -1,5 +1,9 @@
 import { body, query } from 'express-validator';
-import { TASK_PRIORITIES, TASK_SORT_FIELDS, TASK_STATUSES } from '../models/Task';
+import { TASK_PRIORITIES, TASK_SORT_FIELDS, TASK_STATUSES, TASK_TITLE_MAX_LENGTH } from '../models/Task';
+
+// Checked here so a long title gets a 400, not a 500 from PostgreSQL ("value too long for VARCHAR(255)").
+// SQLite (tests) doesn't enforce the length, so without this rule the tests would never see it.
+const titleLengthMessage = `Title must be at most ${TASK_TITLE_MAX_LENGTH} characters`;
 
 const statusRule = () =>
   body('status')
@@ -27,7 +31,12 @@ const projectIdRule = () =>
     .toInt();
 
 export const validateCreateTask = [
-  body('title').trim().notEmpty().withMessage('Title is required'),
+  body('title')
+    .trim()
+    .notEmpty()
+    .withMessage('Title is required')
+    .isLength({ max: TASK_TITLE_MAX_LENGTH })
+    .withMessage(titleLengthMessage),
   body('description').optional().trim(),
   statusRule(),
   priorityRule(),
@@ -36,7 +45,13 @@ export const validateCreateTask = [
 ];
 
 export const validateUpdateTask = [
-  body('title').optional().trim().notEmpty().withMessage('Title cannot be empty'),
+  body('title')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Title cannot be empty')
+    .isLength({ max: TASK_TITLE_MAX_LENGTH })
+    .withMessage(titleLengthMessage),
   body('description').optional().trim(),
   statusRule(),
   priorityRule(),

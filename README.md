@@ -197,7 +197,7 @@ users
   id, name, email, password, createdAt, updatedAt
 
 tasks
-  id, title, description, status (backlog|todo|in-progress|in-review|done)
+  id, title (max 255), description, status (backlog|todo|in-progress|in-review|done)
   priority (low|medium|high), dueDate
   userId (FK → users.id)
   projectId (FK → projects.id, nullable, ON DELETE SET NULL)
@@ -250,7 +250,7 @@ tests/
 └── integration/    # HTTP endpoints via Supertest (auth, tasks, task list filters, collaborators, projects, rate limiting) + migrations
 ```
 
-225 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
+227 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
 
 ---
 

@@ -4,10 +4,42 @@
 // A Server Action is a public endpoint (anyone can POST to it), so its arguments are checked
 // even though the TypeScript types already restrict them.
 import { refresh } from 'next/cache';
+import { redirect, RedirectType } from 'next/navigation';
 import * as z from 'zod';
 import { ApiError } from '@/lib/api-client';
+import type { FormState } from '@/lib/form-state';
+import { safePath, withSearchParam } from '@/lib/paths';
 import * as taskService from './task.service';
-import { TASK_STATUSES, type TaskStatus } from './task.types';
+import { CREATE_TASK_FIELDS, CreateTaskSchema, type CreateTaskField } from './task.schemas';
+import { TASK_STATUSES, type Task, type TaskStatus } from './task.types';
+
+export type CreateTaskState = FormState<CreateTaskField>;
+
+// The "New task" form (modal or full page), through useActionState.
+export async function createTask(_state: CreateTaskState, formData: FormData): Promise<CreateTaskState> {
+  // Everything typed so far, to refill the form if something is wrong.
+  const values = Object.fromEntries(
+    CREATE_TASK_FIELDS.map((field) => [field, String(formData.get(field) ?? '')]),
+  ) as Record<CreateTaskField, string>;
+
+  const parsed = CreateTaskSchema.safeParse(values);
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors, values };
+
+  let task: Task;
+  try {
+    task = await taskService.createTask(parsed.data);
+  } catch (error) {
+    // 400 (API validation), 403 / 404 (project I can't add tasks to): shown above the buttons.
+    if (error instanceof ApiError) return { message: error.message, values };
+    throw error; // unexpected (API down...): handled by app/error.tsx
+  }
+
+  // Back to the view the form was opened from, with ?created= so the list can say "Task created".
+  // replace, not push (the default in Server Actions): Back must not reopen the form.
+  // redirect() works by throwing, so it stays outside the try/catch.
+  const next = safePath(formData.get('next'), '/tasks');
+  redirect(withSearchParam(next, 'created', String(task.id)), RedirectType.replace);
+}
 
 const UpdateStatusSchema = z.object({
   taskId: z.number().int().positive(),

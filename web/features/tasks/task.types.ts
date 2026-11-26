@@ -23,6 +23,20 @@ export interface Task {
   updatedAt: string;
 }
 
+// The title column is a VARCHAR(255): same limit as the backend's TASK_TITLE_MAX_LENGTH.
+export const TASK_TITLE_MAX_LENGTH = 255;
+
+// Body of POST /tasks. Only the title is required; the API applies the defaults
+// (status todo, priority medium, no due date, no project = personal task).
+export interface CreateTaskInput {
+  title: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  dueDate?: string; // "YYYY-MM-DD"
+  projectId?: number; // I must be the owner or an editor of the project (403 / 404 otherwise)
+}
+
 // Body of PUT /tasks/:id: only the fields sent are changed (the backend's WRITABLE_FIELDS).
 export type UpdateTaskInput = Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'dueDate'>>;
 

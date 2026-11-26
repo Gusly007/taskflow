@@ -85,3 +85,8 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* The page behind an open modal (components/ui/modal.tsx) doesn't scroll. */
+html:has(dialog[open]) {
+  overflow: hidden;
+}
