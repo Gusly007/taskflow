@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Select } from '@/components/ui/select';
+import { cn } from '@/lib/cn';
 import { PRIORITY_LABELS, STATUS_LABELS } from '../task-labels';
 import { TASK_PRIORITIES, TASK_STATUSES, type TaskPriority, type TaskStatus } from '../task.types';
 import { TASK_SORTS, hasActiveFilters, tasksHref, type TaskSearchParams, type TaskSort } from '../search-params';
@@ -64,6 +65,7 @@ export function TaskFilters({ params, projects }: TaskFiltersProps) {
   };
 
   const sortedProjects = [...projects].sort((a, b) => a.name.localeCompare(b.name));
+  const filtering = hasActiveFilters(params);
 
   return (
     <form
@@ -71,7 +73,9 @@ export function TaskFilters({ params, projects }: TaskFiltersProps) {
       action="/tasks"
       aria-label="Filter tasks"
       aria-busy={isPending}
-      className="flex flex-wrap items-end gap-x-4 gap-y-3 rounded-lg border border-border bg-surface px-4 py-3"
+      // One line from tablet width: four equal columns that shrink with the screen (long values end
+      // with "…"), then a fixed slot for Clear filters. 2 x 2 on phones.
+      className="grid grid-cols-2 items-end gap-x-3 gap-y-3 rounded-lg border border-border bg-surface px-4 py-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto]"
     >
       {/* Keep the sidebar view when the form is submitted without JavaScript. */}
       {params.scope === 'mine' && <input type="hidden" name="scope" value="mine" />}
@@ -84,7 +88,6 @@ export function TaskFilters({ params, projects }: TaskFiltersProps) {
         options={STATUS_OPTIONS}
         selected={values.status}
         onChange={(status) => change({ status: status as TaskStatus[] })}
-        className="w-44"
       />
 
       <MultiSelect
@@ -94,10 +97,9 @@ export function TaskFilters({ params, projects }: TaskFiltersProps) {
         options={PRIORITY_OPTIONS}
         selected={values.priority}
         onChange={(priority) => change({ priority: priority as TaskPriority[] })}
-        className="w-40"
       />
 
-      <label className="flex w-44 flex-col gap-1.5 text-xs font-medium text-muted-foreground">
+      <label className="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-muted-foreground">
         Project
         <Select
           name="projectId"
@@ -115,7 +117,7 @@ export function TaskFilters({ params, projects }: TaskFiltersProps) {
         </Select>
       </label>
 
-      <label className="flex w-44 flex-col gap-1.5 text-xs font-medium text-muted-foreground">
+      <label className="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-muted-foreground">
         Sort by
         <Select
           name="sort"
@@ -132,23 +134,25 @@ export function TaskFilters({ params, projects }: TaskFiltersProps) {
         </Select>
       </label>
 
-      <div className="flex h-8 items-center gap-3 text-sm">
+      <div className={cn('col-span-2 flex h-8 items-center justify-end gap-3 text-sm md:col-span-1', !filtering && 'max-md:hidden')}>
         <noscript>
           <button type="submit" className="rounded-md border border-border bg-background px-3 py-1 font-medium">
             Apply
           </button>
         </noscript>
-        {hasActiveFilters(params) && (
-          <Link
-            href={tasksHref({ scope: params.scope, overdue: params.overdue, sort: params.sort })}
-            scroll={false}
-            className="font-medium underline underline-offset-2"
-          >
-            Clear filters
-          </Link>
-        )}
+        {/* Always rendered so its slot keeps the same width: the four lists don't jump sideways when
+            the first filter is set. invisible = not shown, not focusable, not read. */}
+        <Link
+          href={tasksHref({ scope: params.scope, overdue: params.overdue, sort: params.sort })}
+          scroll={false}
+          aria-hidden={!filtering}
+          tabIndex={filtering ? undefined : -1}
+          className={cn('whitespace-nowrap font-medium underline underline-offset-2', !filtering && 'invisible')}
+        >
+          Clear filters
+        </Link>
         {/* Announced to screen readers while the new list loads. */}
-        <span role="status" className="text-muted-foreground">
+        <span role="status" className="sr-only">
           {isPending ? 'Updating…' : ''}
         </span>
       </div>
