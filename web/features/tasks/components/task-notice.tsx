@@ -1,23 +1,32 @@
 'use client';
 
-// "Task created", shown once on the list after the form redirects to it with ?created=12.
-// The param is removed from the URL right away with history.replaceState (no reload, no new
-// history entry, Next's router stays in sync), so a refresh or a copied link doesn't show it again.
+// "Task created." / "Task updated." / "Task deleted.", shown once on the list after a task form
+// redirects to it with ?created=12, ?updated=12 or ?deleted=12. The param is removed from the URL
+// right away with history.replaceState (no reload, no new history entry, Next's router stays in
+// sync), so a refresh or a copied link doesn't show it again.
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { TASK_NOTICE_KINDS, type TaskNoticeKind } from '../search-params';
 
-interface CreatedNoticeProps {
-  // false when the new task doesn't match the current view (e.g. created from "Overdue" with a
-  // future due date): say so, otherwise the user would think it was lost.
+const MESSAGES: Record<TaskNoticeKind, string> = {
+  created: 'Task created.',
+  updated: 'Task updated.',
+  deleted: 'Task deleted.',
+};
+
+interface TaskNoticeProps {
+  kind: TaskNoticeKind;
+  // false when the task doesn't match the current view (created from "Overdue" with a future due
+  // date, marked done from "Overdue"...): say so, otherwise the user would think it was lost.
   visibleInView: boolean;
 }
 
-export function CreatedNotice({ visibleInView }: CreatedNoticeProps) {
+export function TaskNotice({ kind, visibleInView }: TaskNoticeProps) {
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    url.searchParams.delete('created');
+    for (const key of TASK_NOTICE_KINDS) url.searchParams.delete(key);
     window.history.replaceState(null, '', `${url.pathname}${url.search}`);
   }, []);
 
@@ -26,8 +35,8 @@ export function CreatedNotice({ visibleInView }: CreatedNoticeProps) {
   return (
     <div role="status" className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted px-3 py-2 text-sm">
       <p>
-        Task created.
-        {!visibleInView && (
+        {MESSAGES[kind]}
+        {kind !== 'deleted' && !visibleInView && (
           <>
             {' '}It isn&apos;t shown in this view.{' '}
             <Link href="/tasks" className="font-medium underline underline-offset-2">

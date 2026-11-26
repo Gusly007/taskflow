@@ -6,7 +6,8 @@
 //   useOptimistic falls back to the server's value by itself and the API's message is shown.
 // - Keyboard: Enter / Space / arrows open it, arrows / Home / End move, Enter picks, Escape closes.
 //   ARIA "menu button" pattern: the screen reader announces a menu with one checked item.
-// - The API decides who may change a status (README rule 7): the menu doesn't guess.
+// - Who may change a status is decided by the API: it sends my role with each task, and a viewer
+//   gets a plain read-only pill (readOnly). If the role changed meanwhile, the API still refuses.
 import { useEffect, useId, useOptimistic, useRef, useState, useTransition } from 'react';
 import { cn } from '@/lib/cn';
 import { updateTaskStatus } from '../task.actions';
@@ -17,9 +18,10 @@ import { TaskStatusIcon } from './task-status-icon';
 interface TaskStatusMenuProps {
   taskId: number;
   status: TaskStatus; // the server's value
+  readOnly?: boolean; // I'm only a viewer of the task
 }
 
-export function TaskStatusMenu({ taskId, status }: TaskStatusMenuProps) {
+export function TaskStatusMenu({ taskId, status, readOnly = false }: TaskStatusMenuProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -91,6 +93,19 @@ export function TaskStatusMenu({ taskId, status }: TaskStatusMenuProps) {
         break;
     }
   };
+
+  if (readOnly) {
+    return (
+      <span
+        title="You can only view this task"
+        className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-dashed border-border px-2 text-xs font-medium text-muted-foreground"
+      >
+        <TaskStatusIcon status={status} />
+        <span className="sr-only">Status: </span>
+        {STATUS_LABELS[status]}
+      </span>
+    );
+  }
 
   return (
     <div ref={rootRef} className="relative flex shrink-0 flex-col items-end gap-1">

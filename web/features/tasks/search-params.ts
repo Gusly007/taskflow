@@ -6,20 +6,37 @@ import type { ListTasksQuery, TaskScope } from './task.types';
 // What Next gives a page in `searchParams`: ?a=1&a=2 becomes ['1', '2'].
 export type RawSearchParams = Record<string, string | string[] | undefined>;
 
+// What the task forms just did, set by their actions on the way back to the list:
+// ?created=12, ?updated=12 or ?deleted=12 -> "Task created." / "Task updated." / "Task deleted."
+export const TASK_NOTICE_KINDS = ['created', 'updated', 'deleted'] as const;
+export type TaskNoticeKind = (typeof TASK_NOTICE_KINDS)[number];
+
 export interface TaskSearchParams {
   scope: TaskScope; // ?scope=mine -> only the tasks I own; anything else -> 'all'
   overdue: boolean; // ?overdue=true -> due date in the past and not done
-  created: number | null; // ?created=12 -> the task just created by the form ("Task created")
+  notice: { kind: TaskNoticeKind; taskId: number } | null;
 }
 
 const first = (value: string | string[] | undefined): string | undefined => (Array.isArray(value) ? value[0] : value);
 
+const positiveInt = (value: string | undefined): number | null => {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
+const parseNotice = (params: RawSearchParams): TaskSearchParams['notice'] => {
+  for (const kind of TASK_NOTICE_KINDS) {
+    const taskId = positiveInt(first(params[kind]));
+    if (taskId !== null) return { kind, taskId };
+  }
+  return null;
+};
+
 export function parseTaskSearchParams(params: RawSearchParams): TaskSearchParams {
-  const created = Number(first(params.created));
   return {
     scope: first(params.scope) === 'mine' ? 'mine' : 'all',
     overdue: first(params.overdue) === 'true',
-    created: Number.isInteger(created) && created > 0 ? created : null,
+    notice: parseNotice(params),
   };
 }
 
@@ -38,12 +55,22 @@ export function tasksHref({ scope, overdue }: Pick<TaskSearchParams, 'scope' | '
   return search ? `/tasks?${search}` : '/tasks';
 }
 
-// The "New task" link remembers the view it was clicked from, to come back to it after saving.
-export function newTaskHref(params: TaskSearchParams): string {
-  return `/tasks/new?${new URLSearchParams({ next: tasksHref(params) })}`;
+// The "New task" link and each task's link remember the view they were clicked from,
+// to come back to it after saving, deleting or cancelling.
+export function newTaskHref(view: string): string {
+  return `/tasks/new?${new URLSearchParams({ next: view })}`;
 }
 
-// ?next= of /tasks/new: a same-site path only (it ends up in a redirect), /tasks otherwise.
+export function taskHref(taskId: number, view: string): string {
+  return `/tasks/${taskId}?${new URLSearchParams({ next: view })}`;
+}
+
+// ?next= of /tasks/new and /tasks/:id: a same-site path only (it ends up in a redirect), /tasks otherwise.
 export function parseNextParam(params: RawSearchParams): string {
   return safePath(first(params.next), '/tasks');
+}
+
+// The :id of /tasks/:id (null for "abc", "0", "-3"... -> 404).
+export function parseTaskIdParam(id: string): number | null {
+  return positiveInt(id);
 }

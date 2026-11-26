@@ -1,5 +1,14 @@
+import { Op } from 'sequelize';
 import { TaskCollaborator } from '../models';
 import type { CollaboratorRole } from '../models/TaskCollaborator';
+
+// userId's collaborator role on each of these tasks, in one query: taskId -> role.
+// Tasks where userId is not a collaborator are not in the map.
+export const getRolesForTasks = async (taskIds: number[], userId: number): Promise<Map<number, CollaboratorRole>> => {
+  if (!taskIds.length) return new Map();
+  const rows = await TaskCollaborator.findAll({ where: { userId, taskId: { [Op.in]: taskIds } } });
+  return new Map(rows.map((row) => [row.taskId, row.role]));
+};
 
 const findOne = (taskId: number, userId: number): Promise<TaskCollaborator | null> =>
   TaskCollaborator.findOne({ where: { taskId, userId } });

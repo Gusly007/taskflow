@@ -30,6 +30,20 @@ export const getRoleInProject = async (project: Project, userId: number): Promis
 };
 
 /**
+ * userId's role in each of these projects, in two queries (owned ones + memberships):
+ * projectId -> 'owner' | 'editor' | 'viewer'. Projects userId is not in are not in the map.
+ */
+export const getProjectRoles = async (projectIds: number[], userId: number): Promise<Map<number, ProjectRole>> => {
+  const [ownedIds, memberRoles] = await Promise.all([
+    projectRepository.findOwnedIds(projectIds, userId),
+    projectRepository.getMemberRoles(projectIds, userId),
+  ]);
+  const roles = new Map<number, ProjectRole>(memberRoles);
+  for (const id of ownedIds) roles.set(id, 'owner');
+  return roles;
+};
+
+/**
  * Returns the project and the role of userId in it (null role = no access).
  */
 export const getProjectRole = async (

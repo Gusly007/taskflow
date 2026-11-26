@@ -52,6 +52,13 @@ export const getMemberRole = async (projectId: number, userId: number): Promise<
 };
 
 // Role of the user in each of the given projects (projects where the user is not a member are absent).
+// Which of these projects userId owns, in one query.
+export const findOwnedIds = async (projectIds: number[], userId: number): Promise<number[]> => {
+  if (!projectIds.length) return [];
+  const owned = await Project.findAll({ where: { ownerId: userId, id: { [Op.in]: projectIds } }, attributes: ['id'] });
+  return owned.map((project) => project.id);
+};
+
 export const getMemberRoles = async (
   projectIds: number[],
   userId: number,

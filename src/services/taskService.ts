@@ -1,6 +1,7 @@
 import * as taskRepository from '../repositories/taskRepository';
 import * as projectRepository from '../repositories/projectRepository';
-import { assertTaskAccess, type Id } from '../policies/taskPolicy';
+import type { InferAttributes } from 'sequelize';
+import { assertTaskAccess, getTaskRoles, type Id, type TaskRole } from '../policies/taskPolicy';
 import { assertProjectAccess } from '../policies/projectPolicy';
 import ApiError from '../utils/apiError';
 import type { Task } from '../models';
@@ -54,8 +55,29 @@ const pickWritable = <T extends UpdateTaskInput>(data: T): T =>
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_SORT = '-createdAt';
 
-// Today's date as YYYY-MM-DD (UTC), used by the "overdue" filter.
+// Today's date as YYYY-MM-DD (UTC), used by the "overdue" filter and isOverdue below.
 const todayUTC = (): string => new Date().toISOString().slice(0, 10);
+
+// Same rule as the ?overdue=true filter (taskRepository.buildFilters): due before today and not done.
+export const isTaskOverdue = (task: Pick<Task, 'dueDate' | 'status'>, today: string = todayUTC()): boolean =>
+  task.dueDate !== null && task.dueDate < today && task.status !== 'done';
+
+// A task as the API sends it: its fields, plus what the caller needs to display it, so the front
+// doesn't have to guess the rules: their role on it (what they may do) and whether it's overdue.
+export type TaskView = InferAttributes<Task> & { role: TaskRole; isOverdue: boolean };
+
+export const toTaskViews = async (tasks: Task[], userId: number): Promise<TaskView[]> => {
+  const roles = await getTaskRoles(tasks, userId);
+  const today = todayUTC();
+  return tasks.map((task) => ({
+    ...task.toJSON(),
+    role: roles.get(task.id) ?? 'viewer',
+    isOverdue: isTaskOverdue(task, today),
+  }));
+};
+
+export const toTaskView = async (task: Task, userId: number): Promise<TaskView> =>
+  (await toTaskViews([task], userId))[0];
 
 // Turns validated query params into repository options.
 export const buildListOptions = (query: ListTasksQuery = {}, today: string = todayUTC()): ListOptions => {

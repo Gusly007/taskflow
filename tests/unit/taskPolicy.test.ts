@@ -1,5 +1,6 @@
 import {
   getTaskRole,
+  getTaskRoles,
   assertTaskAccess,
   taskRoleFromProjectRole,
   type TaskRole,
@@ -152,6 +153,30 @@ describe('taskPolicy', () => {
         statusCode: 403,
         message: 'Viewers cannot edit tasks',
       });
+    });
+  });
+  describe('getTaskRoles (a whole page at once)', () => {
+    it('uses a fixed number of queries, not 2-3 per task', async () => {
+      const tasks = [
+        fakeTask({ id: 1, userId: 5, projectId: null }), // mine
+        fakeTask({ id: 2, userId: 9, projectId: null }), // shared as editor
+        fakeTask({ id: 3, userId: 9, projectId: 30 }), // project where I'm viewer
+        fakeTask({ id: 4, userId: 9, projectId: 31 }), // project I own
+        fakeTask({ id: 5, userId: 9, projectId: 30 }), // project viewer + shared as editor
+      ];
+      collaboratorRepository.getRolesForTasks.mockResolvedValue(new Map([[2, 'editor'], [5, 'editor']]));
+      projectRepository.findOwnedIds.mockResolvedValue([31]);
+      projectRepository.getMemberRoles.mockResolvedValue(new Map([[30, 'viewer']]));
+
+      const roles = await getTaskRoles(tasks, 5);
+
+      expect(Object.fromEntries(roles)).toEqual({ 1: 'owner', 2: 'editor', 3: 'viewer', 4: 'editor', 5: 'editor' });
+      // Only the tasks that are not mine, and each project once.
+      expect(collaboratorRepository.getRolesForTasks).toHaveBeenCalledTimes(1);
+      expect(collaboratorRepository.getRolesForTasks).toHaveBeenCalledWith([2, 3, 4, 5], 5);
+      expect(projectRepository.getMemberRoles).toHaveBeenCalledWith([30, 31], 5);
+      expect(collaboratorRepository.getCollaboratorRole).not.toHaveBeenCalled();
+      expect(taskRepository.findById).not.toHaveBeenCalled();
     });
   });
 });

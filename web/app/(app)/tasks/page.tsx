@@ -3,11 +3,11 @@ import Link from 'next/link';
 import { buttonClassName } from '@/components/ui/button';
 import { listTasks } from '@/features/tasks/task.service';
 import { listProjects } from '@/features/projects/project.service';
-import { newTaskHref, parseTaskSearchParams, toListTasksQuery } from '@/features/tasks/search-params';
+import { newTaskHref, parseTaskSearchParams, tasksHref, toListTasksQuery } from '@/features/tasks/search-params';
 import { describeTaskView } from '@/features/tasks/task-views';
-import { CreatedNotice } from '@/features/tasks/components/created-notice';
 import { QuickAdd } from '@/features/tasks/components/quick-add';
 import { TaskList } from '@/features/tasks/components/task-list';
+import { TaskNotice } from '@/features/tasks/components/task-notice';
 
 // The browser tab says which view is open: "My tasks · TaskFlow".
 export async function generateMetadata(props: PageProps<'/tasks'>): Promise<Metadata> {
@@ -24,6 +24,8 @@ export async function generateMetadata(props: PageProps<'/tasks'>): Promise<Meta
 export default async function TasksPage(props: PageProps<'/tasks'>) {
   const params = parseTaskSearchParams(await props.searchParams);
   const view = describeTaskView(params);
+  // This view's URL: the task forms come back to it after saving, deleting or cancelling.
+  const viewHref = tasksHref(params);
 
   const [{ items: tasks, meta }, projects] = await Promise.all([
     listTasks(params.scope, toListTasksQuery(params)),
@@ -40,17 +42,21 @@ export default async function TasksPage(props: PageProps<'/tasks'>) {
           <span className="text-sm text-muted-foreground">{meta.total} total</span>
         </div>
         {/* Opens the form in a modal over this list (app/(app)/@modal), then comes back to this view. */}
-        <Link href={newTaskHref(params)} className={buttonClassName('primary', 'h-9')}>
+        <Link href={newTaskHref(viewHref)} className={buttonClassName('primary', 'h-9')}>
           New task
         </Link>
       </div>
 
-      {params.created !== null && (
-        // key: a second task created in a row shows the notice again, even if the first one was dismissed.
-        <CreatedNotice key={params.created} visibleInView={tasks.some((task) => task.id === params.created)} />
+      {params.notice && (
+        // key: a second notice in a row (another task created...) shows again, even if the first was dismissed.
+        <TaskNotice
+          key={`${params.notice.kind}-${params.notice.taskId}`}
+          kind={params.notice.kind}
+          visibleInView={tasks.some((task) => task.id === params.notice?.taskId)}
+        />
       )}
 
-      <TaskList tasks={tasks} projectNames={projectNames} emptyMessage={view.emptyMessage} />
+      <TaskList tasks={tasks} projectNames={projectNames} view={viewHref} emptyMessage={view.emptyMessage} />
     </div>
   );
 }

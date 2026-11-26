@@ -204,6 +204,10 @@ Erreur (`ApiResponse.error`, via `errorMiddleware`) :
 
 Listes paginées : en plus, `"meta": { "page": 1, "limit": 20, "total": 45, "totalPages": 3 }`.
 
+Chaque **tâche** renvoyée (`POST`, `GET` liste et détail, `PUT`) est une *vue* (`taskService.toTaskViews`) : ses champs, plus deux champs calculés pour l'utilisateur connecté, pour que le front n'ait pas à recoder les règles :
+- `role` : `owner` | `editor` | `viewer`, le même calcul que `taskPolicy.getTaskRole` (le plus élevé de : créateur, rôle de collaborateur, rôle via le projet). Pour une page entière, `getTaskRoles` le calcule en un nombre fixe de requêtes (pas 2-3 par tâche).
+- `isOverdue` : échéance avant aujourd'hui (UTC) et statut ≠ `done`, la même règle que le filtre `?overdue=true`.
+
 Pour renvoyer une erreur depuis un service : `throw new ApiError(403, 'message')`.
 
 ---
@@ -217,7 +221,7 @@ tests/
 └── integration/   auth (9), task (37), taskList (22), collaborator (30), project (38), migrations (4), rateLimit (3)
 ```
 
-**227 tests.** Les tests construisent la base SQLite avec les **vraies migrations** (pas `sync`).
+**232 tests.** Les tests construisent la base SQLite avec les **vraies migrations** (pas `sync`).
 
 La CI (`.github/workflows/ci.yml`) tourne à chaque push et PR, avec 3 jobs :
 - **Run tests** : `npm ci` + `npm test` (ts-jest vérifie les types : une erreur de type fait échouer les tests).
@@ -256,6 +260,7 @@ Le Dockerfile a 3 étapes : `build` (compile le TypeScript), `deps` (dépendance
 | 2026-11-25 | **Migration complète vers TypeScript strict** (src + tests) · modèles Sequelize typés · build `dist/` + Dockerfile multi-étapes · `tsx` en dev · `collaboratorRepositorie` renommé `collaboratorRepository` · code mort supprimé (`ownerTask`, `getTasksForCollaborator`…) · 166 tests |
 | 2026-11-26 | **Statuts façon Jira** : `backlog` et `in-review` ajoutés (workflow backlog → todo → in-progress → in-review → done) · migration `ALTER TYPE … ADD VALUE … BEFORE`, `down` qui reclasse les tâches et recrée l'ENUM, testée sur PostgreSQL 16 · tri par statut dans l'ordre du workflow (même `CASE` que la priorité, identique sur SQLite et PostgreSQL) · 216 → 225 tests · CI : le job migrations lance `dist/` (il échouait depuis le passage à TypeScript : `tsx` absent avec `NODE_ENV=production`) |
 | 2026-11-26 | **Faille corrigée** : un titre de plus de 255 caractères faisait une 500 (`VARCHAR(255)` dépassé dans PostgreSQL, invisible sous SQLite) → 400 « Title must be at most 255 characters » à la création et à la modification (`TASK_TITLE_MAX_LENGTH` dans le modèle) · 225 → 227 tests |
+| 2026-11-26 | Les tâches renvoyées portent `role` (mon rôle : owner / editor / viewer) et `isOverdue` · rôles d'une page calculés en lot (`getTaskRoles`, `collaboratorRepository.getRolesForTasks`, `projectPolicy.getProjectRoles`) · 227 → 232 tests |
 
 ---
 

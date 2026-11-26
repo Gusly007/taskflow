@@ -3,7 +3,7 @@ import * as collaboratorRepository from '../repositories/collaboratorRepository'
 import ApiError from '../utils/apiError';
 import type { Task } from '../models';
 import type { CollaboratorRole } from '../models/TaskCollaborator';
-import { getProjectRole, type ProjectRole } from './projectPolicy';
+import { getProjectRole, getProjectRoles, type ProjectRole } from './projectPolicy';
 
 // Single source of truth for "who can do what on a task".
 // Every service that touches a task goes through assertTaskAccess,
@@ -42,6 +42,29 @@ export const getTaskRole = async (
   const collaboratorRole = await collaboratorRepository.getCollaboratorRole(task.id, toId(userId));
   const projectRole = task.projectId ? await getRoleFromProject(task.projectId, toId(userId)) : null;
   return { task, role: highestRole(collaboratorRole, projectRole) };
+};
+
+/**
+ * userId's role on each task of a list (a page of GET /tasks), with the same rules as getTaskRole
+ * but in a fixed number of queries instead of 2-3 per task: taskId -> role.
+ * The tasks come from a query that only returns tasks userId can see, so each one gets a role;
+ * 'viewer' is only a safety net.
+ */
+export const getTaskRoles = async (tasks: Task[], userId: number): Promise<Map<number, TaskRole>> => {
+  const notMine = tasks.filter((task) => task.userId !== userId);
+  const projectIds = [...new Set(notMine.map((task) => task.projectId).filter((id): id is number => id !== null))];
+  const [collaboratorRoles, projectRoles] = await Promise.all([
+    collaboratorRepository.getRolesForTasks(notMine.map((task) => task.id), userId),
+    getProjectRoles(projectIds, userId),
+  ]);
+
+  return new Map(
+    tasks.map((task): [number, TaskRole] => {
+      if (task.userId === userId) return [task.id, 'owner'];
+      const fromProject = task.projectId === null ? null : taskRoleFromProjectRole(projectRoles.get(task.projectId) ?? null);
+      return [task.id, highestRole(collaboratorRoles.get(task.id) ?? null, fromProject) ?? 'viewer'];
+    }),
+  );
 };
 
 /**
