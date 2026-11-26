@@ -10,7 +10,7 @@
 import { useEffect, useId, useOptimistic, useRef, useState, useTransition } from 'react';
 import { cn } from '@/lib/cn';
 import { updateTaskStatus } from '../task.actions';
-import { STATUS_LABELS } from '../task-status';
+import { STATUS_LABELS } from '../task-labels';
 import { TASK_STATUSES, type TaskStatus } from '../task.types';
 import { TaskStatusIcon } from './task-status-icon';
 

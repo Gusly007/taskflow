@@ -5,15 +5,14 @@
 import { redirect } from 'next/navigation';
 import * as z from 'zod';
 import { ApiError } from '@/lib/api-client';
+import { safePath } from '@/lib/paths';
 import { createSession, deleteSession } from '@/lib/session-cookie';
 import type { FormState } from '@/lib/form-state';
 import * as authService from './auth.service';
 import { LoginSchema, RegisterSchema } from './auth.schemas';
 
-// Only same-site paths ("/tasks/3"), never "//evil.com" or "https://...": an open redirect
-// would let a phishing link send users elsewhere right after they log in.
-const safeNext = (value: FormDataEntryValue | null): string =>
-  typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : '/tasks';
+// Where to go after logging in: a same-site path only (see lib/paths.ts), /tasks otherwise.
+const safeNext = (value: FormDataEntryValue | null): string => safePath(value, '/tasks');
 
 export async function login(
   _state: FormState<'email' | 'password'>,

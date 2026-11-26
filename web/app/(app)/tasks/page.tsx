@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
+import { buttonClassName } from '@/components/ui/button';
 import { listTasks } from '@/features/tasks/task.service';
 import { listProjects } from '@/features/projects/project.service';
-import { parseTaskSearchParams, toListTasksQuery } from '@/features/tasks/search-params';
+import { newTaskHref, parseTaskSearchParams, toListTasksQuery } from '@/features/tasks/search-params';
 import { describeTaskView } from '@/features/tasks/task-views';
+import { CreatedNotice } from '@/features/tasks/components/created-notice';
 import { QuickAdd } from '@/features/tasks/components/quick-add';
 import { TaskList } from '@/features/tasks/components/task-list';
 
@@ -31,10 +34,21 @@ export default async function TasksPage(props: PageProps<'/tasks'>) {
   return (
     <div className="flex flex-col gap-6">
       <QuickAdd />
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">{view.title}</h1>
-        <span className="text-sm text-muted-foreground">{meta.total} total</span>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">{view.title}</h1>
+          <span className="text-sm text-muted-foreground">{meta.total} total</span>
+        </div>
+        {/* Opens the form in a modal over this list (app/(app)/@modal), then comes back to this view. */}
+        <Link href={newTaskHref(params)} className={buttonClassName('primary', 'h-9')}>
+          New task
+        </Link>
       </div>
+
+      {params.created !== null && (
+        // key: a second task created in a row shows the notice again, even if the first one was dismissed.
+        <CreatedNotice key={params.created} visibleInView={tasks.some((task) => task.id === params.created)} />
+      )}
 
       <TaskList tasks={tasks} projectNames={projectNames} emptyMessage={view.emptyMessage} />
     </div>
