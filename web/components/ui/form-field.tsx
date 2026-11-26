@@ -56,7 +56,7 @@ export function TextareaField({ name, label, errors, hint, ...textareaProps }: F
 }
 
 // The <option>s are passed as children.
-export function SelectField({ name, label, errors, hint, ...selectProps }: FieldProps & ComponentProps<'select'>) {
+export function SelectField({ name, label, errors, hint, ...selectProps }: FieldProps & ComponentProps<typeof Select>) {
   return (
     <FieldShell name={name} label={label} errors={errors} hint={hint}>
       <Select {...controlAria(name, errors, hint)} {...selectProps} />
