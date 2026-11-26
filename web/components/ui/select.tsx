@@ -8,6 +8,7 @@ export function Select({ className, ...props }: ComponentProps<'select'>) {
       className={cn(
         'h-10 w-full rounded-md border border-border bg-background px-3 text-sm',
         'focus-visible:outline-2 focus-visible:outline-accent aria-invalid:border-danger',
+        'disabled:cursor-not-allowed disabled:bg-surface',
         className,
       )}
       {...props}

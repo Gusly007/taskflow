@@ -28,12 +28,12 @@ Server Action ──────┘    (one per resource)  (token, envelope, err
 app/                      routing only: short pages that read the URL, call a service, compose components
   (auth)/                 public pages (sign in, sign up)
   (app)/                  pages that need a user (the layout checks the session)
-    @modal/               routes shown as a dialog over the page: (.)tasks/new intercepts /tasks/new
-    tasks/new/            the same form as a full page (direct link, refresh)
+    @modal/               routes shown as a dialog over the page: (.)tasks/new and (.)tasks/[id]
+    tasks/new/, tasks/[id]/  the same form / task detail as a full page (direct link, refresh)
   session-expired/        Route Handler: drops the cookie when the API answers 401
 features/                 everything about one domain lives together
   auth/                   auth.service.ts, auth.actions.ts, auth.schemas.ts, auth.types.ts, components/
-  tasks/                  task.service.ts, task.actions.ts, task.types.ts, task.schemas.ts, task-labels.ts (status / priority labels), search-params.ts (URL -> typed params), task-views.ts (titles), components/
+  tasks/                  task.service.ts, task.actions.ts, task.types.ts, task.schemas.ts, task-labels.ts (status / priority labels), search-params.ts (URL -> typed params), task-views.ts (titles), task-detail.ts, task-dates.ts, components/
   projects/               project.service.ts (GET /projects for now), project.types.ts
   collaborators/          collaborator.types.ts (service to come)
   theme/                  light / dark / system switcher

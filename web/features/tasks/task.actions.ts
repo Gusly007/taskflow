@@ -10,18 +10,35 @@ import { ApiError } from '@/lib/api-client';
 import type { FormState } from '@/lib/form-state';
 import { safePath, withSearchParam } from '@/lib/paths';
 import * as taskService from './task.service';
-import { CREATE_TASK_FIELDS, CreateTaskSchema, type CreateTaskField } from './task.schemas';
+import { CreateTaskSchema, TASK_FORM_FIELDS, UpdateTaskSchema, type TaskFormField } from './task.schemas';
+import type { TaskNoticeKind } from './search-params';
 import { TASK_STATUSES, type Task, type TaskStatus } from './task.types';
 
-export type CreateTaskState = FormState<CreateTaskField>;
+export type TaskFormState = FormState<TaskFormField>;
+
+// Everything typed so far, to refill the form if something is wrong.
+const typedValues = (formData: FormData) =>
+  Object.fromEntries(TASK_FORM_FIELDS.map((field) => [field, String(formData.get(field) ?? '')])) as Record<
+    TaskFormField,
+    string
+  >;
+
+// Back to the view the form was opened from, with ?created= / ?updated= / ?deleted= so the list can
+// say what happened. replace, not push (the default in Server Actions): Back must not reopen the form.
+// redirect() works by throwing, so callers keep it outside their try/catch.
+// (A function declaration, not an arrow: TypeScript then knows the code after a call is unreachable.)
+function backToList(formData: FormData, notice: TaskNoticeKind, taskId: number): never {
+  redirect(withSearchParam(safePath(formData.get('next'), '/tasks'), notice, String(taskId)), RedirectType.replace);
+}
+
+const parseTaskId = (value: FormDataEntryValue | null): number | null => {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+};
 
 // The "New task" form (modal or full page), through useActionState.
-export async function createTask(_state: CreateTaskState, formData: FormData): Promise<CreateTaskState> {
-  // Everything typed so far, to refill the form if something is wrong.
-  const values = Object.fromEntries(
-    CREATE_TASK_FIELDS.map((field) => [field, String(formData.get(field) ?? '')]),
-  ) as Record<CreateTaskField, string>;
-
+export async function createTask(_state: TaskFormState, formData: FormData): Promise<TaskFormState> {
+  const values = typedValues(formData);
   const parsed = CreateTaskSchema.safeParse(values);
   if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors, values };
 
@@ -33,12 +50,42 @@ export async function createTask(_state: CreateTaskState, formData: FormData): P
     if (error instanceof ApiError) return { message: error.message, values };
     throw error; // unexpected (API down...): handled by app/error.tsx
   }
+  backToList(formData, 'created', task.id);
+}
 
-  // Back to the view the form was opened from, with ?created= so the list can say "Task created".
-  // replace, not push (the default in Server Actions): Back must not reopen the form.
-  // redirect() works by throwing, so it stays outside the try/catch.
-  const next = safePath(formData.get('next'), '/tasks');
-  redirect(withSearchParam(next, 'created', String(task.id)), RedirectType.replace);
+// The task detail form (modal or full page). Only the fields present in the form are sent:
+// the project <select> is disabled, so absent, when I'm not the task owner.
+export async function updateTask(_state: TaskFormState, formData: FormData): Promise<TaskFormState> {
+  const taskId = parseTaskId(formData.get('taskId'));
+  if (taskId === null) return { message: 'This task no longer exists.' };
+
+  const values = typedValues(formData);
+  const sent = Object.fromEntries(TASK_FORM_FIELDS.filter((field) => formData.has(field)).map((field) => [field, values[field]]));
+  const parsed = UpdateTaskSchema.safeParse(sent);
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors, values };
+
+  try {
+    await taskService.updateTask(taskId, parsed.data);
+  } catch (error) {
+    // 403 (viewer, or moving a task I don't own), 404 (deleted meanwhile): shown above the buttons.
+    if (error instanceof ApiError) return { message: error.message, values };
+    throw error;
+  }
+  backToList(formData, 'updated', taskId);
+}
+
+// "Delete" in the task detail, after the confirmation step. Task owner only (the API checks).
+export async function deleteTask(_state: FormState<never>, formData: FormData): Promise<FormState<never>> {
+  const taskId = parseTaskId(formData.get('taskId'));
+  if (taskId === null) return { message: 'This task no longer exists.' };
+
+  try {
+    await taskService.deleteTask(taskId);
+  } catch (error) {
+    if (error instanceof ApiError) return { message: error.message };
+    throw error;
+  }
+  backToList(formData, 'deleted', taskId);
 }
 
 const UpdateStatusSchema = z.object({

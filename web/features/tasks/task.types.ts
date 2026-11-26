@@ -10,6 +10,11 @@ export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export type TaskSortField = (typeof TASK_SORT_FIELDS)[number];
 
+// My role on a task, sent by the API with each task (the highest of: creator, collaborator role,
+// role through the task's project). owner = everything; editor = edit, but not delete nor move it
+// to another project; viewer = read only.
+export type TaskRole = 'owner' | 'editor' | 'viewer';
+
 export interface Task {
   id: number;
   title: string;
@@ -21,6 +26,9 @@ export interface Task {
   projectId: number | null; // null = personal task
   createdAt: string; // ISO date: JSON has no Date type
   updatedAt: string;
+  // Computed by the API for the logged-in user, so the front doesn't re-implement the rules:
+  role: TaskRole;
+  isOverdue: boolean; // due before today (UTC) and not done: the same rule as ?overdue=true
 }
 
 // The title column is a VARCHAR(255): same limit as the backend's TASK_TITLE_MAX_LENGTH.
@@ -37,8 +45,11 @@ export interface CreateTaskInput {
   projectId?: number; // I must be the owner or an editor of the project (403 / 404 otherwise)
 }
 
-// Body of PUT /tasks/:id: only the fields sent are changed (the backend's WRITABLE_FIELDS).
-export type UpdateTaskInput = Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'dueDate'>>;
+// Body of PUT /tasks/:id: only the fields sent are changed. dueDate: null removes the due date;
+// projectId: null takes the task out of its project (changing projectId: task owner only).
+export type UpdateTaskInput = Partial<
+  Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'dueDate' | 'projectId'>
+>;
 
 // "all": tasks I own, collaborate on, or that belong to a project I own or am a member of (GET /tasks).
 // "mine": only the ones I own (GET /tasks/mine).
