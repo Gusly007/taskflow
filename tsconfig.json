@@ -1,0 +1,19 @@
+{
+  // Used by the editor, by ts-jest and by "npm run typecheck" (src + tests).
+  // The production build uses tsconfig.build.json (src only, output in dist/).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "types": ["node", "jest"],
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": true
+  },
+  "include": ["src", "tests"]
+}

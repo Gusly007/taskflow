@@ -71,20 +71,25 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      # NODE_ENV=production makes npm ci skip devDependencies, but the build needs TypeScript.
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --include=dev
+
+      # Run the compiled migrations (dist/), exactly what the Docker image runs at start-up.
+      - name: Build
+        run: npm run build
 
       - name: Apply all migrations
-        run: npm run migrate
+        run: node dist/db/migrator.js up
 
       - name: Roll back all migrations
-        run: npm run migrate:undo:all
+        run: node dist/db/migrator.js down:all
 
       - name: Re-apply all migrations
-        run: npm run migrate
+        run: node dist/db/migrator.js up
 
       - name: Show migration status
-        run: npm run migrate:status
+        run: node dist/db/migrator.js status
 
   # Makes sure the production image still builds (a broken lock file or Dockerfile fails here).
   docker:

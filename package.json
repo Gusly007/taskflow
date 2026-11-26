@@ -2,14 +2,16 @@
   "name": "task-manager-api",
   "version": "1.0.0",
   "description": "",
-  "main": "src/server.js",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "migrate": "node src/db/migrator.js up",
-    "migrate:undo": "node src/db/migrator.js down",
-    "migrate:undo:all": "node src/db/migrator.js down:all",
-    "migrate:status": "node src/db/migrator.js status",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "typecheck": "tsc",
+    "migrate": "tsx src/db/migrator.ts up",
+    "migrate:undo": "tsx src/db/migrator.ts down",
+    "migrate:undo:all": "tsx src/db/migrator.ts down:all",
+    "migrate:status": "tsx src/db/migrator.ts status",
     "test": "jest --forceExit --detectOpenHandles --verbose",
     "test:coverage": "jest --forceExit --detectOpenHandles --coverage"
   },
@@ -22,9 +24,17 @@
   "license": "ISC",
   "type": "commonjs",
   "jest": {
+    "preset": "ts-jest",
     "testEnvironment": "node",
     "setupFiles": [
-      "./tests/setup.js"
+      "./tests/setup.ts"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/dist/"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/dist/"
     ]
   },
   "bugs": {
@@ -48,8 +58,20 @@
     "umzug": "^3.8.3"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20.19.43",
+    "@types/supertest": "^7.2.1",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "jest": "^30.4.2",
     "sqlite3": "^6.0.1",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.15",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
   }
 }
