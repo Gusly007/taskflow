@@ -2,7 +2,10 @@ import { body, query } from 'express-validator';
 import { TASK_PRIORITIES, TASK_SORT_FIELDS, TASK_STATUSES } from '../models/Task';
 
 const statusRule = () =>
-  body('status').optional().isIn(TASK_STATUSES).withMessage('Status must be todo, in-progress, or done');
+  body('status')
+    .optional()
+    .isIn(TASK_STATUSES)
+    .withMessage(`Status must be one of: ${TASK_STATUSES.join(', ')}`);
 
 const priorityRule = () =>
   body('priority').optional().isIn(TASK_PRIORITIES).withMessage('Priority must be low, medium, or high');

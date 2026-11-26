@@ -2,11 +2,13 @@ import { DataTypes, Model, type CreationOptional, type InferAttributes, type Inf
 import { sequelize } from '../config/db';
 
 // `as const` keeps the exact strings, so TypeScript can derive the union types below.
-export const TASK_STATUSES = ['todo', 'in-progress', 'done'] as const;
+// Statuses are listed in workflow order: sorting by status follows this order (taskRepository).
+// Adding one needs a migration too (ALTER TYPE "enum_tasks_status" on PostgreSQL).
+export const TASK_STATUSES = ['backlog', 'todo', 'in-progress', 'in-review', 'done'] as const;
 export const TASK_PRIORITIES = ['low', 'medium', 'high'] as const;
 export const TASK_SORT_FIELDS = ['createdAt', 'updatedAt', 'dueDate', 'priority', 'title', 'status'] as const;
 
-export type TaskStatus = (typeof TASK_STATUSES)[number]; // 'todo' | 'in-progress' | 'done'
+export type TaskStatus = (typeof TASK_STATUSES)[number]; // 'backlog' | 'todo' | 'in-progress' | 'in-review' | 'done'
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export type TaskSortField = (typeof TASK_SORT_FIELDS)[number];
 

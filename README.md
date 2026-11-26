@@ -197,7 +197,7 @@ users
   id, name, email, password, createdAt, updatedAt
 
 tasks
-  id, title, description, status (todo|in-progress|done)
+  id, title, description, status (backlog|todo|in-progress|in-review|done)
   priority (low|medium|high), dueDate
   userId (FK → users.id)
   projectId (FK → projects.id, nullable, ON DELETE SET NULL)

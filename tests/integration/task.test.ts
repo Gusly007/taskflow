@@ -52,6 +52,14 @@ describe('Task API', () => {
       const res = await request(app).post('/api/tasks').set(auth()).send({ title: 'Task', status: 'invalid' });
 
       expect(res.status).toBe(400);
+      expect(res.body.message).toContain('backlog, todo, in-progress, in-review, done');
+    });
+
+    it.each(['backlog', 'todo', 'in-progress', 'in-review', 'done'])('accepts the "%s" status', async (status) => {
+      const res = await request(app).post('/api/tasks').set(auth()).send({ title: 'Task', status });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.status).toBe(status);
     });
 
     it('defaults priority to medium and dueDate to null', async () => {
@@ -247,6 +255,15 @@ describe('Task API', () => {
       expect(res.status).toBe(200);
       expect(res.body.data.title).toBe('Updated Title');
       expect(res.body.data.status).toBe('done');
+    });
+
+    it('changes only the status when only the status is sent', async () => {
+      const task = await createTask(token, { title: 'Keep me', priority: 'high' });
+
+      const res = await request(app).put(`/api/tasks/${task.id}`).set(auth()).send({ status: 'in-review' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({ status: 'in-review', title: 'Keep me', priority: 'high' });
     });
 
     it('allows editor collaborator to update', async () => {

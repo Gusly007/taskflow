@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize';
 import { sequelize } from '../../src/config/db';
 import { migrator } from '../../src/db/migrator';
 
@@ -35,8 +36,44 @@ describe('Database migrations', () => {
     expect(await columnsOf('tasks')).toEqual(expect.arrayContaining(['priority', 'dueDate']));
   });
 
-  it('rolling back the last migration removes only the projects', async () => {
+  it('rolling back the last migration moves the new statuses back to the closest old ones', async () => {
+    const queryInterface = sequelize.getQueryInterface();
+    const now = new Date();
+    await queryInterface.bulkInsert('users', [
+      { id: 1, name: 'Ann', email: 'ann@test.com', password: 'x', createdAt: now, updatedAt: now },
+    ]);
+    await queryInterface.bulkInsert(
+      'tasks',
+      ['backlog', 'todo', 'in-progress', 'in-review', 'done'].map((status) => ({
+        title: status,
+        status,
+        userId: 1,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    );
+
     await migrator.down();
+
+    const rows = await sequelize.query<{ title: string; status: string }>(
+      'SELECT "title", "status" FROM "tasks" ORDER BY "id"',
+      { type: QueryTypes.SELECT },
+    );
+    expect(rows).toEqual([
+      { title: 'backlog', status: 'todo' },
+      { title: 'todo', status: 'todo' },
+      { title: 'in-progress', status: 'in-progress' },
+      { title: 'in-review', status: 'in-progress' },
+      { title: 'done', status: 'done' },
+    ]);
+
+    await migrator.up();
+    await queryInterface.bulkDelete('tasks', {});
+    await queryInterface.bulkDelete('users', {});
+  });
+
+  it('rolling back two migrations also removes the projects', async () => {
+    await migrator.down({ step: 2 });
 
     expect(await tables()).not.toEqual(expect.arrayContaining(['projects']));
     expect(await tables()).not.toEqual(expect.arrayContaining(['project_members']));
@@ -50,8 +87,8 @@ describe('Database migrations', () => {
     expect(await columnsOf('tasks')).toContain('projectId');
   });
 
-  it('rolling back two migrations also removes dueDate and priority', async () => {
-    await migrator.down({ step: 2 });
+  it('rolling back three migrations also removes dueDate and priority', async () => {
+    await migrator.down({ step: 3 });
 
     const columns = await columnsOf('tasks');
     expect(columns).not.toContain('priority');

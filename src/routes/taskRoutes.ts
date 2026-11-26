@@ -43,7 +43,7 @@ router.use(auth);
  *                 example: Milk, eggs, bread
  *               status:
  *                 type: string
- *                 enum: [todo, in-progress, done]
+ *                 enum: [backlog, todo, in-progress, in-review, done]
  *                 default: todo
  *               priority:
  *                 type: string
@@ -232,7 +232,7 @@ router.get('/:id', validateTaskId, validate, taskController.getById);
  *                 example: Milk, eggs, bread, butter
  *               status:
  *                 type: string
- *                 enum: [todo, in-progress, done]
+ *                 enum: [backlog, todo, in-progress, in-review, done]
  *               priority:
  *                 type: string
  *                 enum: [low, medium, high]

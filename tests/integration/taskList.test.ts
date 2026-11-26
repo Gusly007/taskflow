@@ -96,6 +96,27 @@ describe('GET /api/tasks — filters, sort, pagination', () => {
     expect(res.body.data.map((t: TaskJson) => t.priority)).toEqual(['high', 'medium', 'low', 'low']);
   });
 
+  it('filters by the backlog and in-review statuses', async () => {
+    await createTask(token, { title: 'Idea', status: 'backlog' });
+    await createTask(token, { title: 'Waiting for review', status: 'in-review' });
+
+    const res = await list('?status=backlog,in-review&sort=title');
+
+    expect(titles(res)).toEqual(['Idea', 'Waiting for review']);
+  });
+
+  it('sorts by status in workflow order, not alphabetically', async () => {
+    await createTask(token, { title: 'Idea', status: 'backlog' });
+    await createTask(token, { title: 'Waiting for review', status: 'in-review' });
+    const statuses = (res: request.Response): string[] => res.body.data.map((t: TaskJson) => t.status);
+
+    const asc = await list('?sort=status');
+    const desc = await list('?sort=-status');
+
+    expect(statuses(asc)).toEqual(['backlog', 'todo', 'todo', 'in-progress', 'in-review', 'done']);
+    expect(statuses(desc)).toEqual(['done', 'in-review', 'in-progress', 'todo', 'todo', 'backlog']);
+  });
+
   it('paginates without overlap', async () => {
     const page1 = await list('?sort=title&limit=3&page=1');
     const page2 = await list('?sort=title&limit=3&page=2');

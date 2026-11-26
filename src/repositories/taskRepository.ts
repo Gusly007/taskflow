@@ -1,6 +1,6 @@
 import { Op, literal, type CreationAttributes, type Order, type WhereOptions } from 'sequelize';
 import { Task, TaskCollaborator } from '../models';
-import type { TaskPriority, TaskSortField, TaskStatus } from '../models/Task';
+import { TASK_PRIORITIES, TASK_STATUSES, type TaskPriority, type TaskSortField, type TaskStatus } from '../models/Task';
 
 export type SortDirection = 'ASC' | 'DESC';
 
@@ -52,15 +52,16 @@ const buildFilters = ({ status, priority, overdue, dueAfter, dueBefore, projectI
   return conditions;
 };
 
-// Same order on SQLite and PostgreSQL: priority by importance (not alphabetically),
-// tasks without a due date always last, id as tie-breaker so pages never overlap.
+// CASE "Task"."status" WHEN 'backlog' THEN 1 WHEN 'todo' THEN 2 ... END: ranks a column by the order
+// of its list of values. The values are our own constants, never user input, so building SQL is safe.
+const rankBy = (column: 'priority' | 'status', values: readonly string[]) =>
+  literal(`CASE "Task"."${column}" ${values.map((value, i) => `WHEN '${value}' THEN ${i + 1}`).join(' ')} END`);
+
+// Same order on SQLite and PostgreSQL: priority by importance and status by workflow step
+// (not alphabetically), tasks without a due date always last, id as tie-breaker so pages never overlap.
 const buildOrder = ({ field, direction }: TaskSort): Order => {
-  if (field === 'priority') {
-    return [
-      [literal(`CASE "Task"."priority" WHEN 'low' THEN 1 WHEN 'medium' THEN 2 WHEN 'high' THEN 3 END`), direction],
-      ['id', direction],
-    ];
-  }
+  if (field === 'priority') return [[rankBy('priority', TASK_PRIORITIES), direction], ['id', direction]];
+  if (field === 'status') return [[rankBy('status', TASK_STATUSES), direction], ['id', direction]];
   if (field === 'dueDate') {
     return [[literal('"Task"."dueDate" IS NULL'), 'ASC'], ['dueDate', direction], ['id', direction]];
   }
