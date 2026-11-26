@@ -85,7 +85,7 @@ Requête → Route → Middlewares → Controller → Service → Repository →
 
 ```
 users               id, name, email (unique), password (hashé)
-tasks               id, title, description, status (backlog | todo | in-progress | in-review | done, défaut todo), priority (low | medium | high, défaut medium),
+tasks               id, title (VARCHAR 255), description, status (backlog | todo | in-progress | in-review | done, défaut todo), priority (low | medium | high, défaut medium),
                     dueDate (date AAAA-MM-JJ, nullable, indexée), userId → users,
                     projectId → projects (nullable, indexée, ON DELETE SET NULL)
 task_collaborators  id, taskId → tasks, userId → users, role (viewer | editor), UNIQUE (taskId, userId)
@@ -217,7 +217,7 @@ tests/
 └── integration/   auth (9), task (37), taskList (22), collaborator (30), project (38), migrations (4), rateLimit (3)
 ```
 
-**225 tests.** Les tests construisent la base SQLite avec les **vraies migrations** (pas `sync`).
+**227 tests.** Les tests construisent la base SQLite avec les **vraies migrations** (pas `sync`).
 
 La CI (`.github/workflows/ci.yml`) tourne à chaque push et PR, avec 3 jobs :
 - **Run tests** : `npm ci` + `npm test` (ts-jest vérifie les types : une erreur de type fait échouer les tests).
@@ -255,6 +255,7 @@ Le Dockerfile a 3 étapes : `build` (compile le TypeScript), `deps` (dépendance
 | 2026-11-25 | **Projets** : tables `projects` + `project_members` (viewer / editor), `tasks.projectId` · routes `/api/projects` (CRUD + membres) · `GET /api/tasks` inclut les tâches des projets dont on est membre, filtre `?projectId=` · rôle sur une tâche = le plus élevé (propriétaire, collaborateur, projet) · `projectPolicy` · migration testée sur PostgreSQL 16 · 166 → 216 tests |
 | 2026-11-25 | **Migration complète vers TypeScript strict** (src + tests) · modèles Sequelize typés · build `dist/` + Dockerfile multi-étapes · `tsx` en dev · `collaboratorRepositorie` renommé `collaboratorRepository` · code mort supprimé (`ownerTask`, `getTasksForCollaborator`…) · 166 tests |
 | 2026-11-26 | **Statuts façon Jira** : `backlog` et `in-review` ajoutés (workflow backlog → todo → in-progress → in-review → done) · migration `ALTER TYPE … ADD VALUE … BEFORE`, `down` qui reclasse les tâches et recrée l'ENUM, testée sur PostgreSQL 16 · tri par statut dans l'ordre du workflow (même `CASE` que la priorité, identique sur SQLite et PostgreSQL) · 216 → 225 tests · CI : le job migrations lance `dist/` (il échouait depuis le passage à TypeScript : `tsx` absent avec `NODE_ENV=production`) |
+| 2026-11-26 | **Faille corrigée** : un titre de plus de 255 caractères faisait une 500 (`VARCHAR(255)` dépassé dans PostgreSQL, invisible sous SQLite) → 400 « Title must be at most 255 characters » à la création et à la modification (`TASK_TITLE_MAX_LENGTH` dans le modèle) · 225 → 227 tests |
 
 ---
 

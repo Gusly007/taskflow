@@ -6,6 +6,8 @@ import { sequelize } from '../config/db';
 // Adding one needs a migration too (ALTER TYPE "enum_tasks_status" on PostgreSQL).
 export const TASK_STATUSES = ['backlog', 'todo', 'in-progress', 'in-review', 'done'] as const;
 export const TASK_PRIORITIES = ['low', 'medium', 'high'] as const;
+// The title column is a VARCHAR(255) (Sequelize's default STRING length): validators use the same limit.
+export const TASK_TITLE_MAX_LENGTH = 255;
 export const TASK_SORT_FIELDS = ['createdAt', 'updatedAt', 'dueDate', 'priority', 'title', 'status'] as const;
 
 export type TaskStatus = (typeof TASK_STATUSES)[number]; // 'backlog' | 'todo' | 'in-progress' | 'in-review' | 'done'
@@ -35,7 +37,7 @@ Task.init(
       autoIncrement: true,
     },
     title: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(TASK_TITLE_MAX_LENGTH),
       allowNull: false,
     },
     description: {
