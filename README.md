@@ -250,7 +250,7 @@ tests/
 └── integration/    # HTTP endpoints via Supertest (auth, tasks, task list filters, collaborators, projects, rate limiting) + migrations
 ```
 
-216 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
+225 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
 
 ---
 

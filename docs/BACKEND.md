@@ -221,7 +221,7 @@ tests/
 
 La CI (`.github/workflows/ci.yml`) tourne à chaque push et PR, avec 3 jobs :
 - **Run tests** : `npm ci` + `npm test` (ts-jest vérifie les types : une erreur de type fait échouer les tests).
-- **Migrations on PostgreSQL** : sur un vrai PostgreSQL 16, `migrate` → `migrate:undo:all` → `migrate`.
+- **Migrations on PostgreSQL** : sur un vrai PostgreSQL 16, `npm run build` puis les migrations **compilées**, comme dans l'image Docker : `node dist/db/migrator.js up` → `down:all` → `up` → `status`. `npm ci --include=dev` car `NODE_ENV=production` sauterait les devDependencies (TypeScript).
 - **Docker build** : vérifie que l'image de prod se construit (lock file, Dockerfile, compilation `tsc`).
 
 Le Dockerfile a 3 étapes : `build` (compile le TypeScript), `deps` (dépendances de prod seulement), puis l'image finale qui ne contient que `dist/` et les dépendances de prod (ni sources TypeScript, ni compilateur, ni tests).
@@ -254,7 +254,7 @@ Le Dockerfile a 3 étapes : `build` (compile le TypeScript), `deps` (dépendance
 | 2026-11-10 | Filtres (`status`, `priority`, `overdue`, `dueAfter`/`dueBefore`), tri et pagination (`meta`) sur `GET /tasks` et `/tasks/mine` · rate limiting login/register (429) · `TRUST_PROXY` · 137 → 166 tests |
 | 2026-11-25 | **Projets** : tables `projects` + `project_members` (viewer / editor), `tasks.projectId` · routes `/api/projects` (CRUD + membres) · `GET /api/tasks` inclut les tâches des projets dont on est membre, filtre `?projectId=` · rôle sur une tâche = le plus élevé (propriétaire, collaborateur, projet) · `projectPolicy` · migration testée sur PostgreSQL 16 · 166 → 216 tests |
 | 2026-11-25 | **Migration complète vers TypeScript strict** (src + tests) · modèles Sequelize typés · build `dist/` + Dockerfile multi-étapes · `tsx` en dev · `collaboratorRepositorie` renommé `collaboratorRepository` · code mort supprimé (`ownerTask`, `getTasksForCollaborator`…) · 166 tests |
-| 2026-11-26 | **Statuts façon Jira** : `backlog` et `in-review` ajoutés (workflow backlog → todo → in-progress → in-review → done) · migration `ALTER TYPE … ADD VALUE … BEFORE`, `down` qui reclasse les tâches et recrée l'ENUM, testée sur PostgreSQL 16 · tri par statut dans l'ordre du workflow (même `CASE` que la priorité, identique sur SQLite et PostgreSQL) · 216 → 225 tests |
+| 2026-11-26 | **Statuts façon Jira** : `backlog` et `in-review` ajoutés (workflow backlog → todo → in-progress → in-review → done) · migration `ALTER TYPE … ADD VALUE … BEFORE`, `down` qui reclasse les tâches et recrée l'ENUM, testée sur PostgreSQL 16 · tri par statut dans l'ordre du workflow (même `CASE` que la priorité, identique sur SQLite et PostgreSQL) · 216 → 225 tests · CI : le job migrations lance `dist/` (il échouait depuis le passage à TypeScript : `tsx` absent avec `NODE_ENV=production`) |
 
 ---
 
