@@ -17,11 +17,13 @@ export interface Task {
   priority: TaskPriority;
   dueDate: string | null; // "YYYY-MM-DD"
   userId: number;
+  projectId: number | null; // null = personal task
   createdAt: string; // ISO date: JSON has no Date type
   updatedAt: string;
 }
 
-// "all": tasks I own or collaborate on (GET /tasks). "mine": only the ones I own (GET /tasks/mine).
+// "all": tasks I own, collaborate on, or that belong to a project I own or am a member of (GET /tasks).
+// "mine": only the ones I own (GET /tasks/mine).
 export type TaskScope = 'all' | 'mine';
 
 // Query string of GET /tasks and /tasks/mine (see the backend's validateListTasks).
@@ -31,6 +33,7 @@ export interface ListTasksQuery {
   overdue?: boolean;
   dueAfter?: string; // "YYYY-MM-DD"
   dueBefore?: string;
+  projectId?: number; // only the tasks of this project
   sort?: TaskSortField | `-${TaskSortField}`; // "-" = descending
   page?: number;
   limit?: number; // 1 to 100

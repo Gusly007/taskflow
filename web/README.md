@@ -32,6 +32,7 @@ app/                      routing only: short pages that read the URL, call a se
 features/                 everything about one domain lives together
   auth/                   auth.service.ts, auth.actions.ts, auth.schemas.ts, auth.types.ts, components/
   tasks/                  task.service.ts, task.types.ts, components/ (and soon task.actions.ts, search-params.ts)
+  projects/               project.service.ts (GET /projects for now), project.types.ts
   collaborators/          collaborator.types.ts (service to come)
   theme/                  light / dark / system switcher
 components/
