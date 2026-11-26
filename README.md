@@ -155,6 +155,8 @@ Health check: `http://localhost:3000/health`
 | PUT | `/api/tasks/:id` | owner or editor | Update a task (`dueDate: null` clears it; `userId`/`id` are ignored; changing `projectId` is reserved to the task owner) |
 | DELETE | `/api/tasks/:id` | owner only | Delete a task |
 
+Every task in a response also carries two fields computed for the caller: `role` (`owner`, `editor` or `viewer`: what the caller may do with it) and `isOverdue` (due before today, UTC, and not done: the same rule as `?overdue=true`).
+
 ### Collaborators — `/api/tasks/:id/collaborators` *(requires Bearer token)*
 
 | Method | Route | Access | Description |
@@ -250,7 +252,7 @@ tests/
 └── integration/    # HTTP endpoints via Supertest (auth, tasks, task list filters, collaborators, projects, rate limiting) + migrations
 ```
 
-227 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
+232 tests. CI runs them on every push and pull request (`.github/workflows/ci.yml`).
 
 ---
 
