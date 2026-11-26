@@ -5,13 +5,15 @@ interface TaskListProps {
   tasks: Task[];
   // Project id -> name, to label the tasks that belong to a project.
   projectNames: Map<number, string>;
+  // Shown when there is no task, so each view can say why ("No overdue tasks.").
+  emptyMessage?: string;
 }
 
-export function TaskList({ tasks, projectNames }: TaskListProps) {
+export function TaskList({ tasks, projectNames, emptyMessage = 'No tasks yet.' }: TaskListProps) {
   if (tasks.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
-        No tasks yet.
+        {emptyMessage}
       </p>
     );
   }

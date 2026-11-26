@@ -31,7 +31,7 @@ app/                      routing only: short pages that read the URL, call a se
   session-expired/        Route Handler: drops the cookie when the API answers 401
 features/                 everything about one domain lives together
   auth/                   auth.service.ts, auth.actions.ts, auth.schemas.ts, auth.types.ts, components/
-  tasks/                  task.service.ts, task.actions.ts, task.types.ts, task-status.ts (labels), components/ (soon search-params.ts)
+  tasks/                  task.service.ts, task.actions.ts, task.types.ts, task-status.ts (labels), search-params.ts (URL -> typed params), task-views.ts (titles), components/
   projects/               project.service.ts (GET /projects for now), project.types.ts
   collaborators/          collaborator.types.ts (service to come)
   theme/                  light / dark / system switcher

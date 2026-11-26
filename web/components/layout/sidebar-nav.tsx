@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/cn';
 
 // The views are URLs, so they can be bookmarked and shared.
-// TODO (yours): read ?scope= and ?overdue= in app/(app)/tasks/page.tsx and pass them to listTasks().
+// app/(app)/tasks/page.tsx reads ?scope= and ?overdue= (features/tasks/search-params.ts).
 const VIEWS = [
   { label: 'All tasks', href: '/tasks', scope: null, overdue: false },
   { label: 'Mine', href: '/tasks?scope=mine', scope: 'mine', overdue: false },
