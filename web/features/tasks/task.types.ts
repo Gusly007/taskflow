@@ -1,7 +1,8 @@
 // Task shapes returned by the API (see the backend's models/Task.ts).
 // Written by hand for now: the Swagger spec has no response schemas yet, so it can't generate them.
 
-export const TASK_STATUSES = ['todo', 'in-progress', 'done'] as const;
+// Same values and same order as the backend: the workflow order, also used for sorting.
+export const TASK_STATUSES = ['backlog', 'todo', 'in-progress', 'in-review', 'done'] as const;
 export const TASK_PRIORITIES = ['low', 'medium', 'high'] as const;
 export const TASK_SORT_FIELDS = ['createdAt', 'updatedAt', 'dueDate', 'priority', 'title', 'status'] as const;
 
@@ -21,6 +22,9 @@ export interface Task {
   createdAt: string; // ISO date: JSON has no Date type
   updatedAt: string;
 }
+
+// Body of PUT /tasks/:id: only the fields sent are changed (the backend's WRITABLE_FIELDS).
+export type UpdateTaskInput = Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'dueDate'>>;
 
 // "all": tasks I own, collaborate on, or that belong to a project I own or am a member of (GET /tasks).
 // "mine": only the ones I own (GET /tasks/mine).

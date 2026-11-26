@@ -1,4 +1,5 @@
 import type { Task } from '../task.types';
+import { TaskStatusMenu } from './task-status-menu';
 
 interface TaskListProps {
   tasks: Task[];
@@ -29,7 +30,7 @@ export function TaskList({ tasks, projectNames }: TaskListProps) {
                 </span>
               )}
             </span>
-            <span className="shrink-0 text-sm text-muted-foreground">{task.status}</span>
+            <TaskStatusMenu taskId={task.id} status={task.status} />
           </li>
         );
       })}
