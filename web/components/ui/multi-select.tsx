@@ -54,7 +54,7 @@ export function MultiSelect({ name, label, allLabel, options, selected, onChange
   };
 
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
+    <div className={cn('flex min-w-0 flex-col gap-1.5', className)}>
       <span id={labelId} className="text-xs font-medium text-muted-foreground">
         {label}
       </span>
@@ -79,7 +79,7 @@ export function MultiSelect({ name, label, allLabel, options, selected, onChange
             '[&::-webkit-details-marker]:hidden hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent',
           )}
         >
-          <span id={`${labelId}-value`} className={cn('truncate', selected.length > 0 && 'font-medium')}>
+          <span id={`${labelId}-value`} className={cn('min-w-0 truncate', selected.length > 0 && 'font-medium')}>
             {summarize(options, selected, allLabel)}
           </span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 text-muted-foreground">
