@@ -86,7 +86,8 @@ body {
   color: var(--foreground);
 }
 
-/* The page behind an open modal (components/ui/modal.tsx) doesn't scroll. */
-html:has(dialog[open]) {
+/* The page behind an open modal (components/ui/modal.tsx) or the phone menu
+   (components/layout/mobile-nav-drawer.tsx, a popover) doesn't scroll. */
+html:has(dialog[open], :popover-open) {
   overflow: hidden;
 }
