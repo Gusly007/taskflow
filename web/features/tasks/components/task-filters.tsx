@@ -68,94 +68,104 @@ export function TaskFilters({ params, projects }: TaskFiltersProps) {
   const filtering = hasActiveFilters(params);
 
   return (
-    <form
-      method="get"
-      action="/tasks"
-      aria-label="Filter tasks"
-      aria-busy={isPending}
-      // One line from tablet width: four equal columns that shrink with the screen (long values end
-      // with "…"), then a fixed slot for Clear filters. 2 x 2 on phones.
-      className="grid grid-cols-2 items-end gap-x-3 gap-y-3 rounded-lg border border-border bg-surface px-4 py-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto]"
-    >
-      {/* Keep the sidebar view when the form is submitted without JavaScript. */}
-      {params.scope === 'mine' && <input type="hidden" name="scope" value="mine" />}
-      {params.overdue && <input type="hidden" name="overdue" value="true" />}
+    // A container query, not a screen-width breakpoint: the bar goes on one line when *it* is wide
+    // enough for four readable lists, whether the sidebar is next to it or above it.
+    <div className="@container">
+      <form
+        method="get"
+        action="/tasks"
+        aria-label="Filter tasks"
+        aria-busy={isPending}
+        // Wide: four equal columns, then a fixed 5.5rem track that keeps Clear filters' room even
+        // when it isn't there, so the lists never jump sideways. Narrow: 2 x 2.
+        className="relative grid grid-cols-2 items-end gap-3 rounded-lg border border-border bg-surface px-4 py-3 @2xl:grid-cols-[repeat(4,minmax(0,1fr))_5.5rem]"
+      >
+        {/* Keep the sidebar view when the form is submitted without JavaScript. */}
+        {params.scope === 'mine' && <input type="hidden" name="scope" value="mine" />}
+        {params.overdue && <input type="hidden" name="overdue" value="true" />}
 
-      <MultiSelect
-        name="status"
-        label="Status"
-        allLabel="All statuses"
-        options={STATUS_OPTIONS}
-        selected={values.status}
-        onChange={(status) => change({ status: status as TaskStatus[] })}
-      />
+        <MultiSelect
+          name="status"
+          label="Status"
+          allLabel="All statuses"
+          options={STATUS_OPTIONS}
+          selected={values.status}
+          onChange={(status) => change({ status: status as TaskStatus[] })}
+        />
 
-      <MultiSelect
-        name="priority"
-        label="Priority"
-        allLabel="All priorities"
-        options={PRIORITY_OPTIONS}
-        selected={values.priority}
-        onChange={(priority) => change({ priority: priority as TaskPriority[] })}
-      />
+        <MultiSelect
+          name="priority"
+          label="Priority"
+          allLabel="All priorities"
+          options={PRIORITY_OPTIONS}
+          selected={values.priority}
+          onChange={(priority) => change({ priority: priority as TaskPriority[] })}
+        />
 
-      <label className="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-        Project
-        <Select
-          name="projectId"
-          value={values.projectId ?? ''}
-          onChange={(event) => change({ projectId: event.target.value ? Number(event.target.value) : null })}
-          size="sm"
-          className="text-foreground"
-        >
-          <option value="">All projects</option>
-          {sortedProjects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </Select>
-      </label>
+        <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
+          Project
+          <Select
+            name="projectId"
+            value={values.projectId ?? ''}
+            onChange={(event) => change({ projectId: event.target.value ? Number(event.target.value) : null })}
+            size="sm"
+            className="text-foreground"
+          >
+            <option value="">All projects</option>
+            {sortedProjects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </Select>
+        </label>
 
-      <label className="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-muted-foreground">
-        Sort by
-        <Select
-          name="sort"
-          value={values.sort}
-          onChange={(event) => change({ sort: event.target.value as TaskSort })}
-          size="sm"
-          className="text-foreground"
-        >
-          {TASK_SORTS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
-      </label>
+        <label className="flex flex-col gap-1.5 text-xs font-medium text-muted-foreground">
+          Sort by
+          <Select
+            name="sort"
+            value={values.sort}
+            onChange={(event) => change({ sort: event.target.value as TaskSort })}
+            size="sm"
+            className="text-foreground"
+          >
+            {TASK_SORTS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </label>
 
-      <div className={cn('col-span-2 flex h-8 items-center justify-end gap-3 text-sm md:col-span-1', !filtering && 'max-md:hidden')}>
+        {filtering && (
+          // Wide: in the reserved 5th track. Narrow: out of the grid, in the top-right corner (on the
+          // labels' line), so it adds no row and the list doesn't move down when it appears.
+          <Link
+            href={tasksHref({ scope: params.scope, overdue: params.overdue, sort: params.sort })}
+            scroll={false}
+            className={cn(
+              'flex h-8 items-center justify-self-end whitespace-nowrap text-sm font-medium underline underline-offset-2',
+              '@max-2xl:absolute @max-2xl:right-4 @max-2xl:top-3 @max-2xl:h-4 @max-2xl:text-xs',
+            )}
+          >
+            Clear filters
+          </Link>
+        )}
+
+        {/* Without JavaScript, nothing applies the filters on change: this button does. Never inside
+            a wrapper that can be hidden. (With JavaScript, <noscript> renders nothing.) */}
         <noscript>
-          <button type="submit" className="rounded-md border border-border bg-background px-3 py-1 font-medium">
+          <button type="submit" className="h-8 rounded-md border border-border bg-background px-3 text-sm font-medium">
             Apply
           </button>
         </noscript>
-        {/* Always rendered so its slot keeps the same width: the four lists don't jump sideways when
-            the first filter is set. invisible = not shown, not focusable, not read. */}
-        <Link
-          href={tasksHref({ scope: params.scope, overdue: params.overdue, sort: params.sort })}
-          scroll={false}
-          aria-hidden={!filtering}
-          tabIndex={filtering ? undefined : -1}
-          className={cn('whitespace-nowrap font-medium underline underline-offset-2', !filtering && 'invisible')}
-        >
-          Clear filters
-        </Link>
-        {/* Announced to screen readers while the new list loads. */}
+
+        {/* Announced to screen readers while the new list loads. sr-only is position: absolute, so it
+            takes no grid cell, and it is never inside a hidden wrapper. */}
         <span role="status" className="sr-only">
           {isPending ? 'Updating…' : ''}
         </span>
-      </div>
-    </form>
+      </form>
+    </div>
   );
 }

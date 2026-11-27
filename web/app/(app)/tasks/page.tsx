@@ -34,7 +34,8 @@ export default async function TasksPage(props: PageProps<'/tasks'>) {
   const projectNames = new Map(projects.map((project) => [project.id, project.name]));
 
   return (
-    <div className="flex flex-col gap-6">
+    // group/tasks: lets the results below react to the filter bar's state (see the list wrapper).
+    <div className="group/tasks flex flex-col gap-6">
       <QuickAdd />
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-baseline gap-3">
@@ -58,9 +59,12 @@ export default async function TasksPage(props: PageProps<'/tasks'>) {
         />
       )}
 
-      <TaskList tasks={tasks} projectNames={projectNames} view={viewHref} emptyMessage={view.emptyMessage} />
-
-      <Pagination page={meta.page} totalPages={meta.totalPages} hrefFor={(page) => tasksHref({ ...params, page })} />
+      {/* While the filter bar loads a new list (its form is aria-busy), the current one is dimmed:
+          otherwise the filters would already show the new choice above results that are still old. */}
+      <div className="flex flex-col gap-6 transition-opacity group-has-[form[aria-busy=true]]/tasks:opacity-50">
+        <TaskList tasks={tasks} projectNames={projectNames} view={viewHref} emptyMessage={view.emptyMessage} />
+        <Pagination page={meta.page} totalPages={meta.totalPages} hrefFor={(page) => tasksHref({ ...params, page })} />
+      </div>
     </div>
   );
 }
