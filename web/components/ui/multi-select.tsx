@@ -22,7 +22,6 @@ interface MultiSelectProps {
   options: MultiSelectOption[];
   selected: string[];
   onChange: (values: string[]) => void; // the new selection, in the options' order
-  className?: string;
 }
 
 // "All statuses", "To do", "To do, In progress", "3 selected".
@@ -32,11 +31,12 @@ const summarize = (options: MultiSelectOption[], selected: string[], allLabel: s
   return labels.length <= 2 ? labels.join(', ') : `${labels.length} selected`;
 };
 
-export function MultiSelect({ name, label, allLabel, options, selected, onChange, className }: MultiSelectProps) {
+export function MultiSelect({ name, label, allLabel, options, selected, onChange }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const summaryRef = useRef<HTMLElement>(null);
   const labelId = useId();
+  const summary = summarize(options, selected, allLabel);
 
   // A click anywhere outside closes it.
   useEffect(() => {
@@ -54,7 +54,7 @@ export function MultiSelect({ name, label, allLabel, options, selected, onChange
   };
 
   return (
-    <div className={cn('flex min-w-0 flex-col gap-1.5', className)}>
+    <div className="flex flex-col gap-1.5">
       <span id={labelId} className="text-xs font-medium text-muted-foreground">
         {label}
       </span>
@@ -79,8 +79,9 @@ export function MultiSelect({ name, label, allLabel, options, selected, onChange
             '[&::-webkit-details-marker]:hidden hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent',
           )}
         >
-          <span id={`${labelId}-value`} className={cn('min-w-0 truncate', selected.length > 0 && 'font-medium')}>
-            {summarize(options, selected, allLabel)}
+          {/* truncate: a narrow column ends the text with "…"; the tooltip shows all of it. */}
+          <span id={`${labelId}-value`} title={summary} className={cn('truncate', selected.length > 0 && 'font-medium')}>
+            {summary}
           </span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 text-muted-foreground">
             <path d="m6 9 6 6 6-6" />
